@@ -49,7 +49,6 @@ interface ActivitiesViewProps {
   onCopyPrompt: () => Promise<void> | void;
   promptCopied?: boolean;
   onOpenImportModal: () => void;
-  onOpenDigiHcModal: () => void;
   dateFormat: DateDisplayFormat;
   timeFormat: TimeDisplayFormat;
   onChangeFormats: (next: {
@@ -78,7 +77,6 @@ export function ActivitiesView({
   onCopyPrompt,
   promptCopied = false,
   onOpenImportModal,
-  onOpenDigiHcModal,
   dateFormat,
   timeFormat,
   onChangeFormats,
@@ -283,21 +281,11 @@ export function ActivitiesView({
               <button
                 type="button"
                 onClick={onOpenImportModal}
-                title="Impor aktivitas dari output JSON prompt"
+                title="Impor aktivitas (JSON) atau check-in/out DigiHC (PDF / JSON)"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
               >
                 <Upload className="h-3.5 w-3.5 text-slate-500" />
                 <span>Impor</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onOpenDigiHcModal}
-                title="Masukan data Check-In dan Check-Out dari DigiHC"
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
-              >
-                <Clock className="h-3.5 w-3.5 text-slate-500" />
-                <span>Check-In/Out DigiHC</span>
               </button>
 
               <button

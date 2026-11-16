@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  ArrowRight,
   Bold,
   BookmarkCheck,
   BookmarkPlus,
@@ -19,7 +20,6 @@ import {
 import {
   calculateDurationMinutes,
   formatDurationShort,
-  getIndonesianDayName,
   getTodayIsoDate,
 } from '../lib/formatters';
 import { extractCustomKeysFromProfile } from '../lib/sheetTemplate';
@@ -28,8 +28,11 @@ import type {
   ActivityStatus,
   ActivityTextFormat,
   ColumnAlign,
+  DateDisplayFormat,
   VendorProfile,
 } from '../types';
+import { SingleDatePicker } from './SingleDatePicker';
+import { TimePickerField } from './TimePickerField';
 
 interface CustomFieldDef {
   key: string;
@@ -48,6 +51,7 @@ interface ActivityModalProps {
   initialEntry: ActivityEntry | null;
   existingActivities: ActivityEntry[];
   defaultPicName: string;
+  dateFormat?: DateDisplayFormat;
   vendorProfiles: VendorProfile[];
   savedCustomKeys: string[];
   onSaveCustomKey: (key: string) => Promise<void>;
@@ -89,6 +93,7 @@ export function ActivityModal({
   initialEntry,
   existingActivities,
   defaultPicName,
+  dateFormat = 'dd MMMM yyyy',
   vendorProfiles,
   savedCustomKeys,
   onSaveCustomKey,
@@ -235,6 +240,18 @@ export function ActivityModal({
     }
   }, [open, initialEntry, timeTouched, holidayTouched, date, existingActivities]);
 
+  const existingDateMetaMap = useMemo(() => {
+    const map = new Map<string, { isHoliday?: boolean; hasActivity?: boolean }>();
+    for (const item of existingActivities) {
+      if (item.id === initialEntry?.id) continue;
+      map.set(item.date, {
+        isHoliday: Boolean(item.isHoliday),
+        hasActivity: Boolean(item.activity.trim()),
+      });
+    }
+    return map;
+  }, [existingActivities, initialEntry?.id]);
+
   if (!open) return null;
 
   const sameDateExisting = existingActivities.find(
@@ -242,7 +259,6 @@ export function ActivityModal({
   );
 
   const durationMinutes = calculateDurationMinutes(startTime, endTime);
-  const dayName = getIndonesianDayName(date);
 
   const applyListFormatting = (kind: 'bullet' | 'number') => {
     const el = activityRef.current;
@@ -582,57 +598,49 @@ export function ActivityModal({
             </div>
           )}
 
-          {/* Row 1: Tanggal & Hari */}
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-            <div className="sm:col-span-7">
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                Tanggal
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                required
-              />
-            </div>
-
-            <div className="sm:col-span-5">
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                Hari
-              </label>
-              <div className="px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm font-medium text-slate-700">
-                {dayName}
-              </div>
-            </div>
+          {/* Row 1: Tanggal */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Tanggal
+            </label>
+            <SingleDatePicker
+              value={date}
+              onChange={(nextIso) => setDate(nextIso)}
+              dateFormat={dateFormat}
+              existingByDate={existingDateMetaMap}
+            />
           </div>
 
-          {/* Row 2: Jam */}
+          {/* Row 2: Jam Kerja */}
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">
-              Jam Kerja ({formatDurationShort(durationMinutes)})
-            </label>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="block text-xs font-medium text-slate-700">
+                Jam Kerja
+              </label>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-[10px] font-mono font-medium text-slate-600 tabular-nums">
+                Durasi {formatDurationShort(durationMinutes)}
+              </span>
+            </div>
+
             <div className="flex items-center gap-2">
-              <input
-                type="time"
+              <TimePickerField
+                label="Mulai"
                 value={startTime}
-                onChange={(e) => {
+                onChange={(val) => {
                   setTimeTouched(true);
-                  setStartTime(e.target.value);
+                  setStartTime(val);
                 }}
-                aria-label="Jam mulai"
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                ariaLabel="Jam mulai"
               />
-              <span className="text-slate-400 text-xs font-medium">s/d</span>
-              <input
-                type="time"
+              <ArrowRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <TimePickerField
+                label="Selesai"
                 value={endTime}
-                onChange={(e) => {
+                onChange={(val) => {
                   setTimeTouched(true);
-                  setEndTime(e.target.value);
+                  setEndTime(val);
                 }}
-                aria-label="Jam selesai"
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                ariaLabel="Jam selesai"
               />
             </div>
           </div>
@@ -660,7 +668,7 @@ export function ActivityModal({
             <span>Tandai sebagai hari libur</span>
           </label>
 
-          {sameDateExisting && (
+          {sameDateExisting && !sameDateExisting.isHoliday && (
             <div
               className={`p-3 rounded-lg border text-xs leading-relaxed ${
                 sameDateExisting.activity.trim()
@@ -672,12 +680,6 @@ export function ActivityModal({
                 <>
                   Tanggal ini sudah memiliki aktivitas tersimpan. Saat menekan{' '}
                   <span className="font-semibold">Simpan</span>, Anda akan diminta konfirmasi apakah ingin menggabungkan (merge) aktivitasnya.
-                </>
-              ) : sameDateExisting.isHoliday ? (
-                <>
-                  Tanggal ini ditandai sebagai <span className="font-semibold">Hari Libur (LIB)</span> dengan jam{' '}
-                  <span className="font-mono font-semibold">08:00 - 17:00</span> dan warna baris{' '}
-                  <span className="font-mono font-semibold">#A6A6A6</span>. Menambahkan aktivitas akan menampilkan tanggal ini di Timesheet.
                 </>
               ) : (
                 <>
@@ -819,8 +821,8 @@ export function ActivityModal({
                   fontWeight: activityFormat.bold ? 700 : 400,
                   fontStyle: activityFormat.italic ? 'italic' : 'normal',
                 }}
-                className="w-full px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none resize-y"
-                required
+                className="w-full px-3 py-2 text-xs leading-relaxed text-slate-900 bg-white focus:outline-none resize-y"
+                required={!isHoliday}
               />
             </div>
           </div>

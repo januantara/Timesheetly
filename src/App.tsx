@@ -4,7 +4,6 @@ import { ActivitiesView } from './components/ActivitiesView';
 import { ActivityModal } from './components/ActivityModal';
 import { BackupModal } from './components/BackupModal';
 import { DeleteAccountModal } from './components/DeleteAccountModal';
-import { DigiHcImportModal } from './components/DigiHcImportModal';
 import { ExportPreviewView } from './components/ExportPreviewView';
 import { ExportVendorModal } from './components/ExportVendorModal';
 import { ImportActivitiesModal } from './components/ImportActivitiesModal';
@@ -89,7 +88,6 @@ export default function App() {
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ActivityEntry | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const [digiHcModalOpen, setDigiHcModalOpen] = useState(false);
   const [pendingSingleMerge, setPendingSingleMerge] = useState<{
     existing: ActivityEntry;
     incoming: ActivityEntry;
@@ -519,7 +517,7 @@ export default function App() {
       showNotify(
         'success',
         upserted.isHoliday && !upserted.activity.trim()
-          ? 'Hari libur (LIB) disimpan. Tampil dengan warna #A6A6A6 saat ekspor.'
+          ? 'Hari libur disimpan.'
           : 'Aktivitas timesheet disimpan (upsert) ke tanggal tersebut.'
       );
       return true;
@@ -541,7 +539,7 @@ export default function App() {
     showNotify(
       'success',
       ownedEntry.isHoliday && !ownedEntry.activity.trim()
-        ? 'Hari libur (LIB) disimpan. Disembunyikan di Timesheet dan akan tampil warna #A6A6A6 saat ekspor.'
+        ? 'Hari libur disimpan.'
         : 'Aktivitas timesheet disimpan ke IndexedDB.'
     );
     return true;
@@ -1227,24 +1225,14 @@ export default function App() {
                   </div>
                 </form>
 
-                <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-1.5">
+                <div className="pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                   >
                     <LogOut className="h-3.5 w-3.5" />
                     <span>Logout</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleRequestDeleteAccount(settings.defaultPicName)
-                    }
-                    className="inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg border border-red-200 bg-red-50/70 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Hapus Akun</span>
                   </button>
                 </div>
               </div>
@@ -1301,7 +1289,6 @@ export default function App() {
               onCopyPrompt={handleCopyExtractionPrompt}
               promptCopied={promptCopied}
               onOpenImportModal={() => setImportModalOpen(true)}
-              onOpenDigiHcModal={() => setDigiHcModalOpen(true)}
               dateFormat={activeDateFormat}
               timeFormat={activeTimeFormat}
               onChangeFormats={handleUpdateDisplayFormats}
@@ -1339,6 +1326,7 @@ export default function App() {
         initialEntry={editingEntry}
         existingActivities={ownActivities}
         defaultPicName={settings.defaultPicName}
+        dateFormat={activeDateFormat}
         vendorProfiles={vendorProfiles}
         savedCustomKeys={savedCustomKeys}
         onSaveCustomKey={handleSaveCustomKey}
@@ -1356,19 +1344,10 @@ export default function App() {
         activeAccountName={settings.defaultPicName}
         filter={filter}
         savedCustomKeys={savedCustomKeys}
-        dateFormat={activeDateFormat}
-        timeFormat={activeTimeFormat}
-        onImportEntries={handleImportActivitiesBatch}
-        onNotify={showNotify}
-      />
-
-      <DigiHcImportModal
-        open={digiHcModalOpen}
-        onClose={() => setDigiHcModalOpen(false)}
-        activeAccountName={settings.defaultPicName}
         existingActivities={ownActivities}
         dateFormat={activeDateFormat}
         timeFormat={activeTimeFormat}
+        onImportEntries={handleImportActivitiesBatch}
         onApplyDigiHc={handleApplyDigiHcRecords}
         onNotify={showNotify}
       />
