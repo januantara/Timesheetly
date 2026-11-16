@@ -1,0 +1,6 @@
+{
+  "name": "CatatKerja — Catatan Aktivitas Harian & Ekspor Vendor",
+  "description": "Aplikasi pencatatan activity remark kerja harian dengan profil template tabel vendor kustom, logo, penyimpanan IndexedDB, serta ekspor Excel (.xlsx) dan HTML/PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
