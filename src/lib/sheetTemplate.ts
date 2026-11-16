@@ -3,6 +3,7 @@ import type {
   ColumnConfig,
   DateDisplayFormat,
   SheetCell,
+  SheetCellStyle,
   SheetImage,
   SheetMergeRange,
   SheetTemplate,
@@ -53,6 +54,23 @@ export const ACTIVITY_DATA_TAGS: DynamicTagOption[] = [
   { token: '{{project_code}}', label: 'Project Code', group: 'activity' },
   { token: '{{aplikasi_berdampak}}', label: 'Aplikasi Berdampak', group: 'activity' },
   { token: '{{pic}}', label: 'Akun / PIC', group: 'activity' },
+  { token: '{{jika_ada_activity:P}}', label: 'Hadir (P)', group: 'activity' },
+];
+
+export const CONDITIONAL_KEY_OPTIONS: { key: string; label: string }[] = [
+  { key: 'jika_ada_activity', label: 'Jika ada Activity' },
+  { key: 'jika_ada_jam', label: 'Jika ada Jam Kerja' },
+  { key: 'jika_ada_jam_mulai', label: 'Jika ada Jam Mulai' },
+  { key: 'jika_ada_jam_selesai', label: 'Jika ada Jam Selesai' },
+  { key: 'jika_ada_durasi', label: 'Jika ada Durasi' },
+  { key: 'jika_ada_remark', label: 'Jika ada Remark' },
+  { key: 'jika_ada_project_name', label: 'Jika ada Project Name' },
+  { key: 'jika_ada_project_code', label: 'Jika ada Project Code' },
+  { key: 'jika_ada_aplikasi_berdampak', label: 'Jika ada Aplikasi Berdampak' },
+  { key: 'jika_ada_pic', label: 'Jika ada Akun / PIC' },
+  { key: 'jika_libur', label: 'Jika Hari Libur' },
+  { key: 'jika_bukan_libur', label: 'Jika Bukan Hari Libur' },
+  { key: 'jika_tidak_ada_activity', label: 'Jika Tidak Ada Activity' },
 ];
 
 export const DOCUMENT_META_TAGS: DynamicTagOption[] = [
@@ -316,6 +334,233 @@ export function ensureSheetTemplate(profile: VendorProfile): SheetTemplate {
   return profileToDefaultSheetTemplate(profile);
 }
 
+function normalizeTokenKey(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+const BUILTIN_CONDITION_FIELDS = new Set([
+  'activity',
+  'remark',
+  'jam',
+  'time',
+  'timerange',
+  'jam_mulai',
+  'start_time',
+  'starttime',
+  'jam_selesai',
+  'end_time',
+  'endtime',
+  'durasi',
+  'duration',
+  'tanggal',
+  'date',
+  'hari',
+  'day',
+  'project_name',
+  'project',
+  'proyek',
+  'project_code',
+  'category',
+  'kategori',
+  'aplikasi_berdampak',
+  'status',
+  'pic',
+  'akun',
+  'libur',
+  'hari_libur',
+  'holiday',
+  'is_holiday',
+  'bukan_libur',
+  'hari_kerja',
+  'workday',
+  'data',
+  'row',
+  'entry',
+]);
+
+function hasCustomFieldKey(
+  customValues: Record<string, string> | undefined,
+  fieldKey: string
+): boolean {
+  if (!customValues) return false;
+  const trimmed = fieldKey.trim();
+  if (!trimmed) return false;
+  if (trimmed in customValues) return true;
+  const lower = trimmed.toLowerCase();
+  const norm = normalizeTokenKey(trimmed);
+  for (const k of Object.keys(customValues)) {
+    if (k.trim().toLowerCase() === lower || normalizeTokenKey(k) === norm) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getEntryFieldRawValue(
+  entry: ActivityEntry | null,
+  fieldKey: string,
+  dateFormat: DateDisplayFormat,
+  timeFormat: TimeDisplayFormat
+): string {
+  if (!entry) return '';
+  const norm = normalizeTokenKey(fieldKey);
+  switch (norm) {
+    case 'activity':
+      return entry.activity?.trim() ?? '';
+    case 'remark':
+      return entry.remark?.trim() ?? '';
+    case 'jam':
+    case 'time':
+    case 'timerange':
+      return formatTimeRangeByPattern(entry.startTime, entry.endTime, timeFormat).trim();
+    case 'jam_mulai':
+    case 'start_time':
+    case 'starttime':
+      return formatTimeByPattern(entry.startTime, timeFormat).trim();
+    case 'jam_selesai':
+    case 'end_time':
+    case 'endtime':
+      return formatTimeByPattern(entry.endTime, timeFormat).trim();
+    case 'durasi':
+    case 'duration':
+      return (entry.durationMinutes || 0) > 0
+        ? formatDurationDecimalHours(entry.durationMinutes)
+        : '';
+    case 'tanggal':
+    case 'date':
+      return entry.date?.trim() ? formatDateByPattern(entry.date, dateFormat) : '';
+    case 'hari':
+    case 'day':
+      return entry.date?.trim() ? getIndonesianDayName(entry.date) : '';
+    case 'project_name':
+    case 'project':
+    case 'proyek':
+      return entry.project?.trim() ?? '';
+    case 'project_code':
+    case 'category':
+    case 'kategori':
+      return entry.category?.trim() ?? '';
+    case 'aplikasi_berdampak':
+    case 'status':
+      return entry.status?.trim() ?? '';
+    case 'pic':
+    case 'akun':
+      return entry.pic?.trim() ?? '';
+    case 'libur':
+    case 'hari_libur':
+    case 'holiday':
+    case 'is_holiday':
+      return entry.isHoliday ? 'true' : '';
+    case 'bukan_libur':
+    case 'hari_kerja':
+    case 'workday':
+      return !entry.isHoliday ? 'true' : '';
+    case 'data':
+    case 'row':
+    case 'entry':
+      return 'true';
+    default:
+      return lookupCustomValue(entry.customValues, fieldKey);
+  }
+}
+
+function isEntryFieldPresent(
+  entry: ActivityEntry | null,
+  fieldKey: string,
+  dateFormat: DateDisplayFormat,
+  timeFormat: TimeDisplayFormat
+): boolean {
+  if (!entry) return false;
+  const norm = normalizeTokenKey(fieldKey);
+  const raw = getEntryFieldRawValue(entry, fieldKey, dateFormat, timeFormat).trim();
+  if (!raw || raw === '-') return false;
+  if (!BUILTIN_CONDITION_FIELDS.has(norm)) {
+    const lower = raw.toLowerCase();
+    if (lower === 'false' || lower === '0' || lower === 'no' || lower === 'tidak') {
+      return false;
+    }
+  }
+  return true;
+}
+
+function evaluateConditionalToken(
+  rawKey: string,
+  rawOutput: string,
+  entry: ActivityEntry | null,
+  dateFormat: DateDisplayFormat,
+  timeFormat: TimeDisplayFormat
+): string | null {
+  const keyTrimmed = rawKey.trim();
+  const keyLower = keyTrimmed.toLowerCase();
+  if (keyLower === 'custom') return null;
+
+  const pipeIdx = rawOutput.indexOf('|');
+  const trueText = pipeIdx >= 0 ? rawOutput.slice(0, pipeIdx) : rawOutput;
+  const falseText = pipeIdx >= 0 ? rawOutput.slice(pipeIdx + 1) : '';
+
+  if (!entry) return falseText;
+
+  const eqMatch = /^(?:jika_|if_)?(.+?)(!=|=)(.+)$/i.exec(keyTrimmed);
+  if (eqMatch) {
+    const [, rawField, op, expected] = eqMatch;
+    const actual = getEntryFieldRawValue(entry, rawField, dateFormat, timeFormat);
+    const isMatch = actual.toLowerCase() === expected.trim().toLowerCase();
+    return (op === '!=' ? !isMatch : isMatch) ? trueText : falseText;
+  }
+
+  const keyNorm = normalizeTokenKey(keyTrimmed);
+  const negMatch =
+    /^(?:jika_tidak_ada|jika_kosong|if_empty|if_not|jika_bukan|bukan)_(.+)$/i.exec(
+      keyNorm
+    );
+  if (negMatch) {
+    return !isEntryFieldPresent(entry, negMatch[1], dateFormat, timeFormat)
+      ? trueText
+      : falseText;
+  }
+
+  const posMatch = /^(?:jika_ada|if_has)_(.+)$/i.exec(keyNorm);
+  if (posMatch) {
+    return isEntryFieldPresent(entry, posMatch[1], dateFormat, timeFormat)
+      ? trueText
+      : falseText;
+  }
+
+  const ifPrefixMatch = /^(?:jika|if)_(.+)$/i.exec(keyNorm);
+  if (ifPrefixMatch) {
+    const field = ifPrefixMatch[1];
+    if (
+      BUILTIN_CONDITION_FIELDS.has(normalizeTokenKey(field)) ||
+      hasCustomFieldKey(entry.customValues, field)
+    ) {
+      return isEntryFieldPresent(entry, field, dateFormat, timeFormat)
+        ? trueText
+        : falseText;
+    }
+    return isEntryFieldPresent(entry, 'activity', dateFormat, timeFormat)
+      ? trueText
+      : falseText;
+  }
+
+  if (
+    BUILTIN_CONDITION_FIELDS.has(keyNorm) ||
+    hasCustomFieldKey(entry.customValues, keyTrimmed)
+  ) {
+    return isEntryFieldPresent(entry, keyTrimmed, dateFormat, timeFormat)
+      ? trueText
+      : falseText;
+  }
+
+  // Arbitrary custom key name (e.g. {{hadir:P}}, {{present:P}}, {{status_absen:P}})
+  return isEntryFieldPresent(entry, 'activity', dateFormat, timeFormat)
+    ? trueText
+    : falseText;
+}
+
 export function resolveSheetCellText(
   rawValue: string,
   profile: VendorProfile,
@@ -339,6 +584,20 @@ export function resolveSheetCellText(
     .replace(/\{\{penyetuju\}\}/gi, meta.approvedByName || '____________________')
     .replace(/\{\{total_baris\}\}/gi, String(meta.totalRows))
     .replace(/\{\{total_jam\}\}/gi, totalDur);
+
+  const hasActivity = Boolean(entry && entry.activity.trim().length > 0);
+  text = text
+    .replace(/\{\{([^{}:]+):([^}]*)\}\}/g, (fullMatch, rawKey: string, rawOutput: string) => {
+      const evaluated = evaluateConditionalToken(
+        rawKey,
+        rawOutput,
+        entry,
+        dateFormat,
+        timeFormat
+      );
+      return evaluated !== null ? evaluated : fullMatch;
+    })
+    .replace(/\{\{(?:status_hadir|hadir_p)\}\}/gi, hasActivity ? 'P' : '');
 
   if (entry) {
     text = text
@@ -364,6 +623,27 @@ export function resolveSheetCellText(
   }
 
   return text;
+}
+
+export function getCellSideBorder(
+  style: SheetCellStyle | undefined,
+  side: 'top' | 'right' | 'bottom' | 'left'
+): { width: number; color: string } | null {
+  if (!style?.border) return null;
+  const fallbackWidth = style.borderWidth ?? 1;
+  const fallbackColor = style.borderColor || '#94a3b8';
+  if (!style.borderSides) {
+    return { width: fallbackWidth, color: fallbackColor };
+  }
+  const sideCfg = style.borderSides[side];
+  if (!sideCfg) return null;
+  if (sideCfg === true) {
+    return { width: fallbackWidth, color: fallbackColor };
+  }
+  return {
+    width: sideCfg.width ?? fallbackWidth,
+    color: sideCfg.color || fallbackColor,
+  };
 }
 
 export function extractCustomKeysFromProfile(

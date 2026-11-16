@@ -36,7 +36,9 @@ import {
   ACTIVITY_DATA_TAGS,
   cellKey,
   colIndexToLetter,
+  CONDITIONAL_KEY_OPTIONS,
   DOCUMENT_META_TAGS,
+  getCellSideBorder,
   getLoopRowIndices,
   getMergeCoveringCell,
   withLoopRowIndices,
@@ -202,7 +204,7 @@ function measureAutoFitColumnWidth(
     }
   }
 
-  return Math.max(48, Math.min(640, Math.ceil(maxWidth)));
+  return Math.max(24, Math.min(1200, Math.ceil(maxWidth)));
 }
 
 function measureAutoFitRowHeight(
@@ -278,8 +280,10 @@ export function ExcelSheetEditor({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const borderMenuRef = useRef<HTMLDivElement>(null);
+  const tagMenuRef = useRef<HTMLDivElement>(null);
+  const imageMenuRef = useRef<HTMLDivElement>(null);
   const formulaMenuRef = useRef<HTMLDivElement>(null);
-  const formulaInputRef = useRef<HTMLInputElement>(null);
+  const formulaInputRef = useRef<HTMLTextAreaElement>(null);
   const sheetRef = useRef(sheet);
   sheetRef.current = sheet;
 
@@ -307,6 +311,8 @@ export function ExcelSheetEditor({
   const [showFormulaMenu, setShowFormulaMenu] = useState(false);
   const [borderWidthInput, setBorderWidthInput] = useState<string>('1');
   const [customTagInput, setCustomTagInput] = useState('');
+  const [conditionalKeyInput, setConditionalKeyInput] = useState('jika_ada_activity');
+  const [conditionalTextInput, setConditionalTextInput] = useState('P');
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
 
   const [imgInteraction, setImgInteraction] = useState<{
@@ -382,7 +388,7 @@ export function ExcelSheetEditor({
         });
       } else if (colResize) {
         const dx = e.clientX - colResize.startX;
-        const nextW = Math.max(48, Math.min(640, Math.round(colResize.origWidth + dx)));
+        const nextW = Math.max(24, Math.min(1200, Math.round(colResize.origWidth + dx)));
         onChange((prev) => {
           const nextWidths = [...prev.colWidths];
           nextWidths[colResize.colIndex] = nextW;
@@ -390,7 +396,7 @@ export function ExcelSheetEditor({
         });
       } else if (rowResize) {
         const dy = e.clientY - rowResize.startY;
-        const nextH = Math.max(20, Math.min(360, Math.round(rowResize.origHeight + dy)));
+        const nextH = Math.max(18, Math.min(400, Math.round(rowResize.origHeight + dy)));
         onChange((prev) => {
           const nextHeights = [...prev.rowHeights];
           nextHeights[rowResize.rowIndex] = nextH;
@@ -494,6 +500,49 @@ export function ExcelSheetEditor({
     };
   }, [showFormulaMenu]);
 
+  useEffect(() => {
+    if (!showTagMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (tagMenuRef.current && !tagMenuRef.current.contains(e.target as Node)) {
+        setShowTagMenu(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowTagMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [showTagMenu]);
+
+  useEffect(() => {
+    if (!showImageMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (
+        imageMenuRef.current &&
+        !imageMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowImageMenu(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowImageMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [showImageMenu]);
+
   const canUndo = history.past.length > 0;
   const canRedo = history.future.length > 0;
 
@@ -545,13 +594,25 @@ export function ExcelSheetEditor({
     const updater = (prev: SheetTemplate): SheetTemplate => {
       const k = cellKey(row, col);
       const existing = prev.cells[k];
-      return {
+      const nextSheet: SheetTemplate = {
         ...prev,
         cells: {
           ...prev.cells,
           [k]: { ...existing, value },
         },
       };
+      if (value.includes('\n')) {
+        const merge = getMergeCoveringCell(prev.merges, row, col);
+        if (!merge || merge.startRow === merge.endRow) {
+          const neededH = measureAutoFitRowHeight(nextSheet, row, mode);
+          if (neededH > (prev.rowHeights[row] || 24)) {
+            const nextHeights = [...prev.rowHeights];
+            nextHeights[row] = neededH;
+            nextSheet.rowHeights = nextHeights;
+          }
+        }
+      }
+      return nextSheet;
     };
     if (recordHistory) {
       commitChange(updater);
@@ -1080,9 +1141,13 @@ export function ExcelSheetEditor({
       : primaryRangeLabel;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+    <div className="relative rounded-xl border border-slate-200 bg-white">
       {/* Ribbon Row 1: Formatting & Structure */}
-      <div className="px-3 py-2 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center gap-2">
+      <div
+        className={`relative rounded-t-xl px-3 py-2 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center gap-2 ${
+          showTagMenu || showImageMenu || showBorderMenu ? 'z-40' : 'z-20'
+        }`}
+      >
         <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-md p-0.5">
           <button
             type="button"
@@ -1141,9 +1206,10 @@ export function ExcelSheetEditor({
             onClick={() =>
               applyStyleToSelection(
                 activeStyle.border
-                  ? { border: false }
+                  ? { border: false, borderSides: undefined }
                   : {
                       border: true,
+                      borderSides: undefined,
                       borderWidth: activeStyle.borderWidth ?? 1,
                       borderColor: activeStyle.borderColor || '#94a3b8',
                     }
@@ -1257,7 +1323,7 @@ export function ExcelSheetEditor({
             </div>
 
             {showBorderMenu && (
-              <div className="absolute left-0 top-full mt-1.5 z-40 w-52 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 space-y-0.5">
+              <div className="absolute left-0 top-full mt-1.5 z-50 w-52 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 space-y-0.5">
                 <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                   Preset Ketebalan Border
                 </div>
@@ -1590,13 +1656,14 @@ export function ExcelSheetEditor({
         <span className="text-slate-200" aria-hidden="true">|</span>
 
         {mode === 'template' && (
-          <div className="relative">
+          <div ref={tagMenuRef} className="relative">
             <button
               type="button"
               onClick={() => {
                 setShowTagMenu((v) => !v);
                 setShowImageMenu(false);
                 setShowBorderMenu(false);
+                setShowFormulaMenu(false);
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"
             >
@@ -1605,7 +1672,7 @@ export function ExcelSheetEditor({
             </button>
 
             {showTagMenu && (
-              <div className="absolute left-0 top-full mt-1.5 z-40 w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-3 space-y-3">
+              <div className="absolute left-0 top-full mt-1.5 z-50 w-80 max-h-[75vh] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl p-3 space-y-3">
                 <div>
                   <div className="text-[11px] font-semibold text-slate-500 mb-1.5">
                     Data Activity (untuk Baris Loop)
@@ -1642,6 +1709,79 @@ export function ExcelSheetEditor({
                   </div>
                 </div>
 
+                <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-slate-500">
+                    Isi Teks Otomatis (Kondisional)
+                  </div>
+                  <select
+                    value={
+                      CONDITIONAL_KEY_OPTIONS.some(
+                        (opt) => opt.key === conditionalKeyInput.trim()
+                      )
+                        ? conditionalKeyInput.trim()
+                        : '__custom__'
+                    }
+                    onChange={(e) => {
+                      if (e.target.value !== '__custom__') {
+                        setConditionalKeyInput(e.target.value);
+                      }
+                    }}
+                    className="w-full px-2 py-1 rounded border border-slate-200 bg-slate-50 text-xs text-slate-700 focus:outline-none focus:border-blue-600"
+                  >
+                    {CONDITIONAL_KEY_OPTIONS.map((opt) => (
+                      <option key={opt.key} value={opt.key}>
+                        {opt.label} ({opt.key})
+                      </option>
+                    ))}
+                    {!CONDITIONAL_KEY_OPTIONS.some(
+                      (opt) => opt.key === conditionalKeyInput.trim()
+                    ) && <option value="__custom__">Key Kustom</option>}
+                  </select>
+                  <div className="flex gap-1.5 items-center">
+                    <input
+                      type="text"
+                      value={conditionalKeyInput}
+                      onChange={(e) => setConditionalKeyInput(e.target.value)}
+                      placeholder="Key (misal: hadir, jika_ada_jam)"
+                      title="Key kondisi atau nama field"
+                      className="flex-[1.3] min-w-0 px-2 py-1 rounded border border-slate-200 text-xs font-mono focus:outline-none focus:border-blue-600"
+                    />
+                    <span className="text-slate-400 text-xs font-mono">:</span>
+                    <input
+                      type="text"
+                      value={conditionalTextInput}
+                      onChange={(e) => setConditionalTextInput(e.target.value)}
+                      placeholder="Nilai (P)"
+                      title="Teks yang diisi jika kondisi terpenuhi (gunakan | untuk nilai jika tidak)"
+                      className="flex-1 min-w-0 px-2 py-1 rounded border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rawKey = conditionalKeyInput
+                          .trim()
+                          .replace(/\s+/g, '_')
+                          .replace(/[{}]/g, '');
+                        const cleanKey = rawKey || 'jika_ada_activity';
+                        const txt = conditionalTextInput.trim() || 'P';
+                        insertTokenIntoActiveCell(`{{${cleanKey}:${txt}}}`);
+                      }}
+                      className="px-2.5 py-1 rounded bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 whitespace-nowrap"
+                    >
+                      Sisip
+                    </button>
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-400 truncate">
+                    Token:{' '}
+                    {`{{${
+                      conditionalKeyInput
+                        .trim()
+                        .replace(/\s+/g, '_')
+                        .replace(/[{}]/g, '') || 'jika_ada_activity'
+                    }:${conditionalTextInput.trim() || 'P'}}}`}
+                  </div>
+                </div>
+
                 <div className="pt-2 border-t border-slate-100">
                   <div className="text-[11px] font-semibold text-slate-500 mb-1.5">
                     Atau Buat Data Kustom Baru
@@ -1674,13 +1814,14 @@ export function ExcelSheetEditor({
           </div>
         )}
 
-        <div className="relative">
+        <div ref={imageMenuRef} className="relative">
           <button
             type="button"
             onClick={() => {
               setShowImageMenu((v) => !v);
               setShowTagMenu(false);
               setShowBorderMenu(false);
+              setShowFormulaMenu(false);
             }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 whitespace-nowrap"
           >
@@ -1689,7 +1830,7 @@ export function ExcelSheetEditor({
           </button>
 
           {showImageMenu && (
-            <div className="absolute left-0 top-full mt-1.5 z-40 w-64 rounded-xl border border-slate-200 bg-white shadow-xl p-3 space-y-3">
+            <div className="absolute left-0 top-full mt-1.5 z-50 w-64 rounded-xl border border-slate-200 bg-white shadow-xl p-3 space-y-3">
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
@@ -1759,7 +1900,11 @@ export function ExcelSheetEditor({
       </div>
 
       {/* Formula / Cell Content Bar */}
-      <div className="px-3 py-1.5 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
+      <div
+        className={`relative px-3 py-1.5 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2 ${
+          showFormulaMenu ? 'z-40' : 'z-10'
+        }`}
+      >
         <div className="px-2.5 py-1 rounded border border-slate-200 bg-white font-mono text-xs font-semibold text-slate-700 tabular-nums min-w-[54px] text-center">
           {selectionLabel}
         </div>
@@ -1790,7 +1935,7 @@ export function ExcelSheetEditor({
           </button>
 
           {showFormulaMenu && (
-            <div className="absolute left-0 top-full mt-1.5 z-40 w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-2 space-y-1">
+            <div className="absolute left-0 top-full mt-1.5 z-50 w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-2 space-y-1">
               <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                 Sisipkan Rumus ke Sel {selectionLabel}
               </div>
@@ -1804,7 +1949,28 @@ export function ExcelSheetEditor({
                     : colLetter;
                 const prevRange = `${prevColLetter}2:${prevColLetter}${endRowNum}`;
 
+                const curRowNum = selection.startRow + 1;
+                let activityColIdx = -1;
+                for (let ci = 0; ci < sheet.colWidths.length; ci++) {
+                  const rowCellVal = sheet.cells[cellKey(selection.startRow, ci)]?.value ?? '';
+                  if (/\{\{activity\}\}/i.test(rowCellVal)) {
+                    activityColIdx = ci;
+                    break;
+                  }
+                }
+                const ifTargetRef =
+                  activityColIdx >= 0
+                    ? `${colIndexToLetter(activityColIdx)}${curRowNum}`
+                    : `${prevColLetter}${curRowNum}`;
+
                 const formulaPresets = [
+                  {
+                    name: 'IF',
+                    syntax: `=IF(${ifTargetRef}<>"", "P", "")`,
+                    desc: 'Isi nilai otomatis (mis. "P") jika sel acuan berisi activity / tidak kosong',
+                    selStart: 4,
+                    selEnd: 4 + ifTargetRef.length,
+                  },
                   {
                     name: 'SUM',
                     syntax: `=SUM(${defaultRange})`,
@@ -1874,9 +2040,12 @@ export function ExcelSheetEditor({
         </div>
 
         <span className="font-mono text-xs text-slate-400">fx</span>
-        <input
+        <textarea
           ref={formulaInputRef}
-          type="text"
+          rows={Math.min(
+            3,
+            Math.max(1, (activeCellData.value ?? '').split('\n').length)
+          )}
           value={activeCellData.value ?? ''}
           onFocus={() => {
             formulaSessionPushedRef.current = false;
@@ -1896,8 +2065,30 @@ export function ExcelSheetEditor({
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
+              if (e.shiftKey) {
+                return;
+              }
+              if (e.altKey) {
+                e.preventDefault();
+                const el = e.currentTarget;
+                const start = el.selectionStart ?? el.value.length;
+                const end = el.selectionEnd ?? start;
+                const nextVal = `${el.value.slice(0, start)}\n${el.value.slice(end)}`;
+                const shouldRecord = !formulaSessionPushedRef.current;
+                formulaSessionPushedRef.current = true;
+                setCellValue(
+                  selection.startRow,
+                  selection.startCol,
+                  nextVal,
+                  shouldRecord
+                );
+                requestAnimationFrame(() => {
+                  el.setSelectionRange(start + 1, start + 1);
+                });
+                return;
+              }
               e.preventDefault();
-              moveActiveCell(e.shiftKey ? -1 : 1, 0, false);
+              moveActiveCell(1, 0, false);
               gridRef.current?.focus({ preventScroll: true });
             } else if (e.key === 'Escape') {
               e.preventDefault();
@@ -1906,10 +2097,10 @@ export function ExcelSheetEditor({
           }}
           placeholder={
             mode === 'template'
-              ? 'Ketik teks, tag {{tanggal}}, atau rumus =SUM(...), =COUNT(...), =COUNTIF(...), =SUMIF(...)'
-              : 'Ketik teks atau rumus =SUM(...), =COUNT(...), =COUNTIF(...), =SUMIF(...)'
+              ? 'Ketik teks, tag {{tanggal}}, atau rumus =IF(...), =SUM(...), =COUNTIF(...), =SUMIF(...)'
+              : 'Ketik teks atau rumus =IF(...), =SUM(...), =COUNT(...), =COUNTIF(...), =SUMIF(...)'
           }
-          className="flex-1 px-2.5 py-1 rounded border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:border-blue-600"
+          className="flex-1 px-2.5 py-1 rounded border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:border-blue-600 resize-none leading-snug"
         />
         {(() => {
           const activeEval = evaluateSheetCell(
@@ -1938,7 +2129,7 @@ export function ExcelSheetEditor({
         ref={gridRef}
         tabIndex={0}
         onKeyDown={handleGridKeyDown}
-        className={`overflow-auto bg-slate-100/70 p-0 pb-3 pr-3 outline-none ${maxHeightClass}`}
+        className={`relative z-0 overflow-auto bg-slate-100/70 p-0 pb-3 pr-3 outline-none ${maxHeightClass}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           const file = e.dataTransfer.files?.[0];
@@ -2115,6 +2306,12 @@ export function ExcelSheetEditor({
 
                         const hasToken = mode === 'template' && /\{\{[^}]+\}\}/.test(val);
 
+                        const topB = getCellSideBorder(st, 'top');
+                        const rightB = getCellSideBorder(st, 'right');
+                        const bottomB = getCellSideBorder(st, 'bottom');
+                        const leftB = getCellSideBorder(st, 'left');
+                        const gridFallbackBorder = '1px dashed rgba(203, 213, 225, 0.75)';
+
                         return (
                           <td
                             key={cIdx}
@@ -2172,45 +2369,84 @@ export function ExcelSheetEditor({
                               fontWeight: st?.bold ? 700 : 400,
                               fontStyle: st?.italic ? 'italic' : 'normal',
                               fontSize: `${st?.fontSize ?? 11}px`,
-                              border: st?.border
-                                ? `${st.borderWidth ?? 1}px solid ${st.borderColor || '#94a3b8'}`
-                                : '1px dashed rgba(203, 213, 225, 0.75)',
+                              borderTop: topB
+                                ? `${topB.width}px solid ${topB.color}`
+                                : gridFallbackBorder,
+                              borderRight: rightB
+                                ? `${rightB.width}px solid ${rightB.color}`
+                                : gridFallbackBorder,
+                              borderBottom: bottomB
+                                ? `${bottomB.width}px solid ${bottomB.color}`
+                                : gridFallbackBorder,
+                              borderLeft: leftB
+                                ? `${leftB.width}px solid ${leftB.color}`
+                                : gridFallbackBorder,
                               boxShadow: isPrimary
                                 ? 'inset 0 0 0 2px #2563eb'
                                 : isSelected
                                 ? 'inset 0 0 0 1.5px #60a5fa'
                                 : undefined,
                             }}
-                            className="relative px-1.5 py-0.5 overflow-hidden"
+                            className={`relative px-1.5 py-0.5 ${
+                              isEditing ? 'overflow-visible z-30' : 'overflow-hidden'
+                            }`}
                           >
                             {isEditing ? (
-                              <input
-                                type="text"
+                              <textarea
                                 value={editBuffer}
                                 onChange={(e) => setEditBuffer(e.target.value)}
+                                onFocus={(e) => {
+                                  const len = e.currentTarget.value.length;
+                                  e.currentTarget.setSelectionRange(len, len);
+                                }}
                                 onBlur={() => commitInlineEdit()}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
+                                    if (e.shiftKey) {
+                                      e.stopPropagation();
+                                      return;
+                                    }
+                                    if (e.altKey) {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      const el = e.currentTarget;
+                                      const start = el.selectionStart ?? editBuffer.length;
+                                      const end = el.selectionEnd ?? start;
+                                      const nextVal = `${editBuffer.slice(0, start)}\n${editBuffer.slice(end)}`;
+                                      setEditBuffer(nextVal);
+                                      requestAnimationFrame(() => {
+                                        el.setSelectionRange(start + 1, start + 1);
+                                      });
+                                      return;
+                                    }
                                     e.preventDefault();
-                                    commitInlineEdit(e.shiftKey ? 'up' : 'down', true);
+                                    commitInlineEdit('down', true);
                                   } else if (e.key === 'Tab') {
                                     e.preventDefault();
                                     commitInlineEdit(e.shiftKey ? 'left' : 'right', true);
-                                  } else if (e.key === 'ArrowUp') {
+                                  } else if (
+                                    e.key === 'ArrowUp' &&
+                                    !editBuffer.includes('\n')
+                                  ) {
                                     e.preventDefault();
                                     commitInlineEdit('up', true);
-                                  } else if (e.key === 'ArrowDown') {
+                                  } else if (
+                                    e.key === 'ArrowDown' &&
+                                    !editBuffer.includes('\n')
+                                  ) {
                                     e.preventDefault();
                                     commitInlineEdit('down', true);
                                   } else if (
                                     e.key === 'ArrowLeft' &&
-                                    editOrigin === 'type'
+                                    editOrigin === 'type' &&
+                                    !editBuffer.includes('\n')
                                   ) {
                                     e.preventDefault();
                                     commitInlineEdit('left', true);
                                   } else if (
                                     e.key === 'ArrowRight' &&
-                                    editOrigin === 'type'
+                                    editOrigin === 'type' &&
+                                    !editBuffer.includes('\n')
                                   ) {
                                     e.preventDefault();
                                     commitInlineEdit('right', true);
@@ -2223,7 +2459,20 @@ export function ExcelSheetEditor({
                                   }
                                 }}
                                 autoFocus
-                                className="w-full h-full bg-white text-slate-900 text-xs px-1 outline-none"
+                                style={{
+                                  minHeight: `${Math.max(22, h * rowSpan)}px`,
+                                  height: `${Math.max(
+                                    h * rowSpan,
+                                    editBuffer.split('\n').length *
+                                      Math.ceil((st?.fontSize ?? 11) * 1.45) +
+                                      8
+                                  )}px`,
+                                  textAlign: st?.align || 'left',
+                                  fontSize: `${st?.fontSize ?? 11}px`,
+                                  fontWeight: st?.bold ? 700 : 400,
+                                  fontStyle: st?.italic ? 'italic' : 'normal',
+                                }}
+                                className="absolute inset-x-0 top-0 z-30 w-full resize-none bg-white text-slate-900 px-1.5 py-0.5 leading-snug outline-none ring-2 ring-blue-600 shadow-md"
                               />
                             ) : (
                               <div
@@ -2321,9 +2570,9 @@ export function ExcelSheetEditor({
         </div>
       </div>
 
-      <div className="px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+      <div className="relative z-0 rounded-b-xl px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
         <span>
-          Gunakan tombol panah untuk berpindah sel · Klik dua kali atau tekan F2 untuk mengetik · Seret sel lalu klik Gabung Sel
+          Gunakan tombol panah untuk berpindah sel · Klik dua kali atau tekan F2 untuk mengetik · Shift+Enter untuk baris baru di dalam sel · Seret sel lalu klik Gabung Sel
         </span>
         <span className="font-mono tabular-nums">
           {sheet.images.length} gambar

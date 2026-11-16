@@ -20,6 +20,7 @@ import {
 import {
   buildLoopedSheetFromTemplate,
   cellKey,
+  getCellSideBorder,
   getMergeCoveringCell,
   pxOffsetToExcelCol,
   pxOffsetToExcelRow,
@@ -136,22 +137,37 @@ function applyCellStyleToExcel(
   };
 
   if (st?.border) {
-    const bWidth = st.borderWidth ?? 1;
-    const excelBorderStyle: ExcelJS.BorderStyle =
-      bWidth <= 0.75
-        ? 'hair'
-        : bWidth <= 1.5
-        ? 'thin'
-        : bWidth <= 2.5
-        ? 'medium'
-        : 'thick';
-    const borderArgb = hexToArgb(st.borderColor, 'FF94A3B8');
-    excelCell.border = {
-      top: { style: excelBorderStyle, color: { argb: borderArgb } },
-      bottom: { style: excelBorderStyle, color: { argb: borderArgb } },
-      left: { style: excelBorderStyle, color: { argb: borderArgb } },
-      right: { style: excelBorderStyle, color: { argb: borderArgb } },
+    const toExcelBorder = (
+      sideSpec: { width: number; color: string } | null
+    ): Partial<ExcelJS.Border> | undefined => {
+      if (!sideSpec) return undefined;
+      const bWidth = sideSpec.width;
+      const excelBorderStyle: ExcelJS.BorderStyle =
+        bWidth <= 0.75
+          ? 'hair'
+          : bWidth <= 1.5
+          ? 'thin'
+          : bWidth <= 2.5
+          ? 'medium'
+          : 'thick';
+      return {
+        style: excelBorderStyle,
+        color: { argb: hexToArgb(sideSpec.color, 'FF94A3B8') },
+      };
     };
+
+    const topB = toExcelBorder(getCellSideBorder(st, 'top'));
+    const bottomB = toExcelBorder(getCellSideBorder(st, 'bottom'));
+    const leftB = toExcelBorder(getCellSideBorder(st, 'left'));
+    const rightB = toExcelBorder(getCellSideBorder(st, 'right'));
+    if (topB || bottomB || leftB || rightB) {
+      excelCell.border = {
+        ...(topB ? { top: topB } : {}),
+        ...(bottomB ? { bottom: bottomB } : {}),
+        ...(leftB ? { left: leftB } : {}),
+        ...(rightB ? { right: rightB } : {}),
+      };
+    }
   }
 
   const lines = textVal.split('\n').reduce((acc, part) => {
@@ -320,7 +336,7 @@ async function buildSheetHtmlParts(
     sheet.colWidths.reduce((s, w) => s + (w || 100), 0)
   );
   const colCount = sheet.colWidths.length;
-  const printablePageWidthPx = orientation === 'landscape' ? 1030 : 700;
+  const printablePageWidthPx = orientation === 'landscape' ? 986 : 658;
   const printZoom =
     sumColWidths > printablePageWidthPx
       ? (printablePageWidthPx / sumColWidths).toFixed(4)
@@ -370,6 +386,26 @@ async function buildSheetHtmlParts(
       const st = cellData?.style;
       const val = getSheetCellDisplayValue(sheet, r, c);
 
+      const borderCssParts: string[] = [];
+      if (st?.border) {
+        if (!st.borderSides) {
+          borderCssParts.push(
+            `border:${st.borderWidth ?? 1}px solid ${st.borderColor || '#94a3b8'}`
+          );
+        } else {
+          (['top', 'right', 'bottom', 'left'] as const).forEach((side) => {
+            const spec = getCellSideBorder(st, side);
+            borderCssParts.push(
+              spec
+                ? `border-${side}:${spec.width}px solid ${spec.color}`
+                : `border-${side}:none`
+            );
+          });
+        }
+      } else {
+        borderCssParts.push('border:none');
+      }
+
       const css = [
         `text-align:${st?.align ?? 'left'}`,
         `font-weight:${st?.bold ? '700' : '400'}`,
@@ -377,9 +413,7 @@ async function buildSheetHtmlParts(
         `font-size:${st?.fontSize ?? 11}px`,
         `color:${st?.textColor ?? '#0f172a'}`,
         st?.bgColor ? `background:${st.bgColor}` : '',
-        st?.border
-          ? `border:${st.borderWidth ?? 1}px solid ${st.borderColor || '#94a3b8'}`
-          : 'border:none',
+        ...borderCssParts,
         `height:${cellMinHeightPx}px`,
         'box-sizing:border-box',
         'padding:4px 8px',
@@ -448,6 +482,16 @@ export async function generateStandaloneHtmlFromSheet(
   orientation: 'portrait' | 'landscape'
 ): Promise<string> {
   const parts = await buildSheetHtmlParts(sheet, title, orientation);
+  const pxToMm = 25.4 / 96;
+  const marginMm = 18;
+  const customPageWidthMm = Math.max(
+    80,
+    Number((parts.sumColWidths * pxToMm + marginMm * 2).toFixed(2))
+  );
+  const customPageHeightMm = Math.max(
+    80,
+    Number((parts.maxContentHeightPx * pxToMm + marginMm * 2).toFixed(2))
+  );
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -455,12 +499,12 @@ export async function generateStandaloneHtmlFromSheet(
   <meta charset="UTF-8" />
   <title>${escapeHtml(title)}</title>
   <style>
-    @page { size: A4 ${orientation}; margin: 12mm; }
+    @page { size: ${customPageWidthMm}mm ${customPageHeightMm}mm; margin: ${marginMm}mm; }
     body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; background: #ffffff; }
     ${parts.styleCss}
     @media print {
       body { padding: 0; }
-      .sheet-canvas { zoom: ${parts.printZoom}; }
+      .sheet-canvas { zoom: 1; }
     }
   </style>
 </head>
@@ -509,11 +553,14 @@ export async function exportSheetToPdf(
 
   const parts = await buildSheetHtmlParts(sheet, title, orientation);
 
+  const scopePaddingPx = 4;
+  const captureWidth = parts.sumColWidths + scopePaddingPx * 2;
+
   const host = document.createElement('div');
   host.style.position = 'fixed';
   host.style.left = '-14000px';
   host.style.top = '0';
-  host.style.width = `${parts.sumColWidths}px`;
+  host.style.width = `${captureWidth}px`;
   host.style.background = '#ffffff';
   host.style.pointerEvents = 'none';
   host.style.zIndex = '-1';
@@ -527,6 +574,12 @@ export async function exportSheetToPdf(
   const contentHolder = document.createElement('div');
   contentHolder.innerHTML = parts.bodyMarkup;
   host.appendChild(contentHolder);
+
+  const scopeEl = contentHolder.querySelector('.sheet-export-scope') as HTMLElement | null;
+  if (scopeEl) {
+    scopeEl.style.padding = `${scopePaddingPx}px`;
+    scopeEl.style.width = `${captureWidth}px`;
+  }
 
   document.body.appendChild(host);
 
@@ -551,39 +604,40 @@ export async function exportSheetToPdf(
       requestAnimationFrame(() => requestAnimationFrame(() => r()))
     );
 
-    const canvasEl = host.querySelector('.sheet-canvas') as HTMLElement | null;
-    if (!canvasEl) {
+    const captureTarget = scopeEl ?? (host.querySelector('.sheet-canvas') as HTMLElement | null);
+    if (!captureTarget) {
       throw new Error('Gagal menyiapkan pratinjau PDF.');
     }
 
-    const canvasRect = canvasEl.getBoundingClientRect();
-    const trElements = Array.from(canvasEl.querySelectorAll('tbody > tr'));
-    const rowRects = trElements.map((tr) => {
-      const r = tr.getBoundingClientRect();
-      return {
-        top: Math.max(0, r.top - canvasRect.top),
-        bottom: Math.max(0, r.bottom - canvasRect.top),
-      };
-    });
+    const captureRect = captureTarget.getBoundingClientRect();
+    const trElements = Array.from(captureTarget.querySelectorAll('tbody > tr'));
+    const lastRowBottom =
+      trElements.length > 0
+        ? Math.max(
+            0,
+            trElements[trElements.length - 1].getBoundingClientRect().bottom -
+              captureRect.top
+          )
+        : 0;
 
     const totalCssH = Math.max(
-      canvasEl.scrollHeight,
-      parts.maxContentHeightPx,
-      rowRects[rowRects.length - 1]?.bottom ?? 0,
-      24
+      captureTarget.scrollHeight,
+      parts.maxContentHeightPx + scopePaddingPx * 2,
+      lastRowBottom + scopePaddingPx,
+      32
     );
 
     // Keep rendered canvas inside safe browser max-height limits while staying sharp
     const targetScale = Math.min(2.5, Math.max(1.2, 13000 / totalCssH));
 
-    const renderedCanvas = await html2canvas(canvasEl, {
+    const renderedCanvas = await html2canvas(captureTarget, {
       scale: targetScale,
       backgroundColor: '#ffffff',
       useCORS: true,
       logging: false,
-      width: parts.sumColWidths,
+      width: captureWidth,
       height: Math.ceil(totalCssH),
-      windowWidth: parts.sumColWidths,
+      windowWidth: captureWidth,
       onclone: (clonedDoc) => {
         // Isolate export styles from Tailwind v4 Preflight so PDF matches standalone HTML 1:1
         const headStyles = Array.from(
@@ -604,102 +658,43 @@ export async function exportSheetToPdf(
       },
     });
 
-    const doc = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 12;
-    const printableWidthMm = pageWidth - margin * 2;
-    const printableHeightMm = pageHeight - margin * 2;
+    // Export as a single continuous custom-sized PDF page fitted to the full sheet (no A4 page breaks)
+    const pxToMm = 25.4 / 96;
+    const margin = 18;
+    const contentWidthMm = captureWidth * pxToMm;
+    const contentHeightMm = totalCssH * pxToMm;
+    const pageWidthMm = Math.max(
+      80,
+      Number((contentWidthMm + margin * 2).toFixed(2))
+    );
+    const pageHeightMm = Math.max(
+      80,
+      Number((contentHeightMm + margin * 2).toFixed(2))
+    );
+    const docOrientation: 'portrait' | 'landscape' =
+      pageWidthMm > pageHeightMm ? 'landscape' : 'portrait';
 
-    // Match the exact print scaling/centering of the standalone HTML
-    const renderedWidthMm =
-      parts.sumColWidths <= parts.printablePageWidthPx
-        ? printableWidthMm * (parts.sumColWidths / parts.printablePageWidthPx)
-        : printableWidthMm;
-    const xOffsetMm = margin + Math.max(0, (printableWidthMm - renderedWidthMm) / 2);
-    const pxToMm = renderedWidthMm / parts.sumColWidths;
-    const maxPageCssH = Math.max(80, Math.floor(printableHeightMm / pxToMm));
-
-    // Determine safe page break Y positions that avoid cutting rows or vertical merges
-    const slices: { startY: number; endY: number }[] = [];
-    let pageStartY = 0;
-
-    while (pageStartY < totalCssH - 0.5) {
-      if (totalCssH - pageStartY <= maxPageCssH + 0.5) {
-        slices.push({ startY: pageStartY, endY: totalCssH });
-        break;
-      }
-
-      let bestCutY = 0;
-      for (let rIdx = 1; rIdx < rowRects.length; rIdx++) {
-        const boundaryY = rowRects[rIdx].top;
-        if (boundaryY <= pageStartY + 1) continue;
-        if (boundaryY > pageStartY + maxPageCssH) break;
-
-        const crossesMerge = sheet.merges.some(
-          (m) => m.startRow < rIdx && m.endRow >= rIdx
-        );
-        if (!crossesMerge) {
-          bestCutY = boundaryY;
-        }
-      }
-
-      const cutY =
-        bestCutY > pageStartY + 1
-          ? bestCutY
-          : Math.min(totalCssH, pageStartY + maxPageCssH);
-
-      slices.push({ startY: pageStartY, endY: cutY });
-      pageStartY = cutY;
-    }
-
-    const actualScaleY = renderedCanvas.height / totalCssH;
-
-    slices.forEach((slice, pageIdx) => {
-      if (pageIdx > 0) doc.addPage();
-
-      const srcY = Math.max(0, Math.round(slice.startY * actualScaleY));
-      const srcEndY = Math.min(
-        renderedCanvas.height,
-        Math.round(slice.endY * actualScaleY)
-      );
-      const srcH = Math.max(1, srcEndY - srcY);
-
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = renderedCanvas.width;
-      pageCanvas.height = srcH;
-      const ctx = pageCanvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        ctx.drawImage(
-          renderedCanvas,
-          0,
-          srcY,
-          renderedCanvas.width,
-          srcH,
-          0,
-          0,
-          renderedCanvas.width,
-          srcH
-        );
-      }
-
-      const sliceCssH = srcH / actualScaleY;
-      const sliceMmH = Math.min(printableHeightMm, sliceCssH * pxToMm);
-      const sliceDataUrl = pageCanvas.toDataURL('image/png');
-
-      doc.addImage(
-        sliceDataUrl,
-        'PNG',
-        xOffsetMm,
-        margin,
-        renderedWidthMm,
-        sliceMmH,
-        undefined,
-        'FAST'
-      );
+    const doc = new jsPDF({
+      orientation: docOrientation,
+      unit: 'mm',
+      format: [pageWidthMm, pageHeightMm],
     });
+    const actualPageW = doc.internal.pageSize.getWidth();
+    const actualPageH = doc.internal.pageSize.getHeight();
+    const drawW = Math.max(10, actualPageW - margin * 2);
+    const drawH = Math.max(10, actualPageH - margin * 2);
+
+    const imgDataUrl = renderedCanvas.toDataURL('image/png');
+    doc.addImage(
+      imgDataUrl,
+      'PNG',
+      margin,
+      margin,
+      drawW,
+      drawH,
+      undefined,
+      'FAST'
+    );
 
     const filename = `${sanitizeExportFilename(title || 'Timesheet')}.pdf`;
     doc.save(filename);

@@ -24,7 +24,11 @@ import {
   formatDateIndonesian,
 } from '../lib/formatters';
 import { getSheetCellDisplayValue } from '../lib/sheetFormulas';
-import { cellKey, getMergeCoveringCell } from '../lib/sheetTemplate';
+import {
+  cellKey,
+  getCellSideBorder,
+  getMergeCoveringCell,
+} from '../lib/sheetTemplate';
 import type { SavedExportReport, SheetTemplate } from '../types';
 import { ExcelSheetEditor } from './ExcelSheetEditor';
 
@@ -736,6 +740,11 @@ export function ExportPreviewView({
                     const st = cellData?.style;
                     const text = getSheetCellDisplayValue(draft.sheet, r, c);
 
+                    const topB = getCellSideBorder(st, 'top');
+                    const rightB = getCellSideBorder(st, 'right');
+                    const bottomB = getCellSideBorder(st, 'bottom');
+                    const leftB = getCellSideBorder(st, 'left');
+
                     return (
                       <td
                         key={c}
@@ -749,9 +758,10 @@ export function ExportPreviewView({
                           fontSize: `${st?.fontSize ?? 11}px`,
                           color: st?.textColor ?? '#0f172a',
                           backgroundColor: st?.bgColor || undefined,
-                          border: st?.border
-                            ? `${st.borderWidth ?? 1}px solid ${st.borderColor || '#94a3b8'}`
-                            : 'none',
+                          borderTop: topB ? `${topB.width}px solid ${topB.color}` : 'none',
+                          borderRight: rightB ? `${rightB.width}px solid ${rightB.color}` : 'none',
+                          borderBottom: bottomB ? `${bottomB.width}px solid ${bottomB.color}` : 'none',
+                          borderLeft: leftB ? `${leftB.width}px solid ${leftB.color}` : 'none',
                           height: `${cellMinHeightPx}px`,
                           boxSizing: 'border-box',
                         }}

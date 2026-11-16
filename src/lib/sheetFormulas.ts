@@ -323,9 +323,58 @@ export function matchesCriteria(cellDisplayValue: string, criteriaRaw: string): 
 }
 
 interface InternalEvalValue {
-  kind: 'number' | 'string' | 'duration' | 'error';
+  kind: 'number' | 'string' | 'duration' | 'boolean' | 'error';
   num: number;
   str: string;
+}
+
+function toBooleanValue(val: InternalEvalValue): boolean | null {
+  if (val.kind === 'error') return null;
+  if (val.kind === 'boolean') return val.num !== 0;
+  if (val.kind === 'number' || val.kind === 'duration') return val.num !== 0;
+  const upper = val.str.trim().toUpperCase();
+  if (upper === 'TRUE') return true;
+  if (upper === 'FALSE' || upper === '') return false;
+  const asNum = parseNumericValue(val.str);
+  if (asNum !== null) return asNum !== 0;
+  return val.str.trim().length > 0;
+}
+
+function compareEvalValues(
+  left: InternalEvalValue,
+  right: InternalEvalValue,
+  op: '=' | '<>' | '!=' | '>' | '>=' | '<' | '<='
+): InternalEvalValue {
+  if (left.kind === 'error') return left;
+  if (right.kind === 'error') return right;
+
+  let cmp: number;
+  if (
+    (left.kind === 'number' || left.kind === 'duration') &&
+    (right.kind === 'number' || right.kind === 'duration') &&
+    left.kind === right.kind
+  ) {
+    cmp = left.num === right.num ? 0 : left.num < right.num ? -1 : 1;
+  } else {
+    const numCmp = compareValues(left.str, right.str);
+    if (numCmp !== null) {
+      cmp = numCmp;
+    } else {
+      const a = left.str.trim().toLowerCase();
+      const b = right.str.trim().toLowerCase();
+      cmp = a === b ? 0 : a < b ? -1 : 1;
+    }
+  }
+
+  let res = false;
+  if (op === '=') res = cmp === 0;
+  else if (op === '<>' || op === '!=') res = cmp !== 0;
+  else if (op === '>') res = cmp > 0;
+  else if (op === '>=') res = cmp >= 0;
+  else if (op === '<') res = cmp < 0;
+  else if (op === '<=') res = cmp <= 0;
+
+  return { kind: 'boolean', num: res ? 1 : 0, str: res ? 'TRUE' : 'FALSE' };
 }
 
 function summarizeValuesForSum(values: string[]): InternalEvalValue {
@@ -430,6 +479,57 @@ function evalExpression(
     }
     if (wrapsEntire && depth === 0) {
       return evalExpression(trimmed.slice(1, -1), sheet, visited);
+    }
+  }
+
+  // Boolean literals TRUE / FALSE
+  if (/^(TRUE|FALSE)$/i.test(trimmed)) {
+    const isTrue = trimmed.toUpperCase() === 'TRUE';
+    return { kind: 'boolean', num: isTrue ? 1 : 0, str: isTrue ? 'TRUE' : 'FALSE' };
+  }
+
+  // Binary comparison operators (=, <>, !=, >=, <=, >, <) at top level
+  {
+    let depthCmp = 0;
+    let inQuotesCmp = false;
+    let foundIdx = -1;
+    let foundOp: '=' | '<>' | '!=' | '>' | '>=' | '<' | '<=' | null = null;
+    for (let i = 0; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (ch === '"') {
+        if (inQuotesCmp && trimmed[i + 1] === '"') {
+          i++;
+          continue;
+        }
+        inQuotesCmp = !inQuotesCmp;
+        continue;
+      }
+      if (inQuotesCmp) continue;
+      if (ch === '(') {
+        depthCmp++;
+        continue;
+      }
+      if (ch === ')') {
+        depthCmp = Math.max(0, depthCmp - 1);
+        continue;
+      }
+      if (depthCmp !== 0) continue;
+      const two = trimmed.slice(i, i + 2);
+      if (two === '<>' || two === '!=' || two === '>=' || two === '<=') {
+        foundIdx = i;
+        foundOp = two;
+        i++;
+      } else if (ch === '=' || ch === '>' || ch === '<') {
+        foundIdx = i;
+        foundOp = ch;
+      }
+    }
+    if (foundOp && foundIdx > 0) {
+      const leftStr = trimmed.slice(0, foundIdx);
+      const rightStr = trimmed.slice(foundIdx + foundOp.length);
+      const left = evalExpression(leftStr, sheet, visited);
+      const right = evalExpression(rightStr, sheet, visited);
+      return compareEvalValues(left, right, foundOp);
     }
   }
 
@@ -701,6 +801,117 @@ function evalFunction(
     }
 
     return summarizeValuesForSum(matchedSumValues);
+  }
+
+  if (fnName === 'IF') {
+    if (args.length < 2 || args.length > 3) {
+      return { kind: 'error', num: 0, str: '#VALUE!' };
+    }
+    const condVal = evalExpression(args[0], sheet, visited);
+    if (condVal.kind === 'error') return condVal;
+    const isTruthy = toBooleanValue(condVal);
+    if (isTruthy === null) return { kind: 'error', num: 0, str: '#VALUE!' };
+    if (isTruthy) {
+      return evalExpression(args[1], sheet, visited);
+    }
+    if (args.length === 3 && args[2].trim() !== '') {
+      return evalExpression(args[2], sheet, visited);
+    }
+    return { kind: 'string', num: 0, str: '' };
+  }
+
+  if (fnName === 'AND') {
+    if (args.length === 0) return { kind: 'error', num: 0, str: '#VALUE!' };
+    for (const arg of args) {
+      const val = evalExpression(arg, sheet, visited);
+      if (val.kind === 'error') return val;
+      if (!toBooleanValue(val)) {
+        return { kind: 'boolean', num: 0, str: 'FALSE' };
+      }
+    }
+    return { kind: 'boolean', num: 1, str: 'TRUE' };
+  }
+
+  if (fnName === 'OR') {
+    if (args.length === 0) return { kind: 'error', num: 0, str: '#VALUE!' };
+    for (const arg of args) {
+      const val = evalExpression(arg, sheet, visited);
+      if (val.kind === 'error') return val;
+      if (toBooleanValue(val)) {
+        return { kind: 'boolean', num: 1, str: 'TRUE' };
+      }
+    }
+    return { kind: 'boolean', num: 0, str: 'FALSE' };
+  }
+
+  if (fnName === 'NOT') {
+    if (args.length !== 1) return { kind: 'error', num: 0, str: '#VALUE!' };
+    const val = evalExpression(args[0], sheet, visited);
+    if (val.kind === 'error') return val;
+    const res = !toBooleanValue(val);
+    return { kind: 'boolean', num: res ? 1 : 0, str: res ? 'TRUE' : 'FALSE' };
+  }
+
+  if (fnName === 'ISBLANK') {
+    if (args.length !== 1) return { kind: 'error', num: 0, str: '#VALUE!' };
+    const ref = parseCellRef(args[0]);
+    if (ref) {
+      const raw = sheet.cells[makeCellKey(ref.row, ref.col)]?.value ?? '';
+      const isBlank = raw === '';
+      return { kind: 'boolean', num: isBlank ? 1 : 0, str: isBlank ? 'TRUE' : 'FALSE' };
+    }
+    const val = evalExpression(args[0], sheet, visited);
+    if (val.kind === 'error') return val;
+    const isBlank = val.str === '';
+    return { kind: 'boolean', num: isBlank ? 1 : 0, str: isBlank ? 'TRUE' : 'FALSE' };
+  }
+
+  if (fnName === 'LEN') {
+    if (args.length !== 1) return { kind: 'error', num: 0, str: '#VALUE!' };
+    const val = evalExpression(args[0], sheet, visited);
+    if (val.kind === 'error') return val;
+    const len = val.str.length;
+    return { kind: 'number', num: len, str: String(len) };
+  }
+
+  if (fnName === 'TRIM') {
+    if (args.length !== 1) return { kind: 'error', num: 0, str: '#VALUE!' };
+    const val = evalExpression(args[0], sheet, visited);
+    if (val.kind === 'error') return val;
+    return { kind: 'string', num: 0, str: val.str.trim().replace(/\s+/g, ' ') };
+  }
+
+  if (fnName === 'MIN' || fnName === 'MAX') {
+    if (args.length === 0) return { kind: 'error', num: 0, str: '#VALUE!' };
+    const collected = collectArgValues(args, sheet, visited);
+    if (collected.error) return collected.error;
+    const nums = collected.values
+      .map((v) => parseNumericValue(v))
+      .filter((n): n is number => n !== null);
+    if (nums.length === 0) return { kind: 'number', num: 0, str: '0' };
+    const res = fnName === 'MIN' ? Math.min(...nums) : Math.max(...nums);
+    return { kind: 'number', num: res, str: formatNumberDisplay(res) };
+  }
+
+  if (fnName === 'ROUND') {
+    if (args.length < 1 || args.length > 2) {
+      return { kind: 'error', num: 0, str: '#VALUE!' };
+    }
+    const val = evalExpression(args[0], sheet, visited);
+    if (val.kind === 'error') return val;
+    const n = val.kind === 'number' ? val.num : parseNumericValue(val.str);
+    if (n === null) return { kind: 'error', num: 0, str: '#VALUE!' };
+    let digits = 0;
+    if (args.length === 2) {
+      const dVal = evalExpression(args[1], sheet, visited);
+      if (dVal.kind === 'error') return dVal;
+      const d = dVal.kind === 'number' ? dVal.num : parseNumericValue(dVal.str);
+      if (d === null) return { kind: 'error', num: 0, str: '#VALUE!' };
+      digits = Math.trunc(d);
+    }
+    const factor = Math.pow(10, digits);
+    const rounded = Math.round(n * factor) / factor;
+    return { kind: 'number', num: rounded, str: formatNumberDisplay(rounded) };
   }
 
   return { kind: 'error', num: 0, str: '#NAME?' };

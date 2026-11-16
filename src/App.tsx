@@ -1316,7 +1316,7 @@ export default function App() {
           )}
         </main>
 
-        <footer className="no-print px-4 sm:px-6 py-3.5 border-t border-slate-200/80 bg-white/70 text-center text-xs text-slate-500">
+        <footer className="no-print relative z-0 px-4 sm:px-6 py-3.5 border-t border-slate-200/80 bg-white/70 text-center text-xs text-slate-500">
           Copyright © {new Date().getFullYear()} by Januantara
         </footer>
       </div>

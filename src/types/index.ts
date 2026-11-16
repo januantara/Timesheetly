@@ -60,6 +60,18 @@ export interface ColumnConfig {
 export type LogoPosition = 'left' | 'center' | 'right';
 export type PaperOrientation = 'portrait' | 'landscape';
 
+export interface SheetBorderSide {
+  width?: number;
+  color?: string;
+}
+
+export interface SheetBorderSides {
+  top?: boolean | SheetBorderSide;
+  right?: boolean | SheetBorderSide;
+  bottom?: boolean | SheetBorderSide;
+  left?: boolean | SheetBorderSide;
+}
+
 export interface SheetCellStyle {
   bold?: boolean;
   italic?: boolean;
@@ -70,6 +82,7 @@ export interface SheetCellStyle {
   border?: boolean;
   borderWidth?: number;
   borderColor?: string;
+  borderSides?: SheetBorderSides;
   fontSize?: number;
 }
 
