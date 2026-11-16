@@ -32,7 +32,7 @@ interface ImportActivitiesModalProps {
   savedCustomKeys: string[];
   dateFormat: DateDisplayFormat;
   timeFormat: TimeDisplayFormat;
-  onImportEntries: (entries: ActivityEntry[]) => Promise<void>;
+  onImportEntries: (entries: ActivityEntry[]) => Promise<boolean>;
   onNotify: (type: 'success' | 'error', message: string) => void;
 }
 
@@ -118,9 +118,11 @@ export function ImportActivitiesModal({
     if (!parsedPreview.ok || parsedPreview.entries.length === 0) return;
     setImporting(true);
     try {
-      await onImportEntries(parsedPreview.entries);
-      setRawInput('');
-      onClose();
+      const shouldClose = await onImportEntries(parsedPreview.entries);
+      if (shouldClose) {
+        setRawInput('');
+        onClose();
+      }
     } catch {
       onNotify('error', 'Gagal menyimpan aktivitas impor ke IndexedDB.');
     } finally {

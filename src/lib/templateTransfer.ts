@@ -8,6 +8,7 @@ import type {
   SheetMergeRange,
   SheetTemplate,
   VendorProfile,
+  VerticalAlign,
 } from '../types';
 import { exportSheetToExcel } from './exporters';
 import { sanitizeFilename } from './formatters';
@@ -240,11 +241,11 @@ function extractExcelCellText(cell: ExcelJS.Cell): string {
     if ('text' in val && typeof val.text === 'string') {
       return val.text;
     }
+    if ('formula' in val && typeof val.formula === 'string' && val.formula.trim()) {
+      return `=${val.formula}`;
+    }
     if ('result' in val && val.result !== undefined && val.result !== null) {
       return String(val.result);
-    }
-    if ('formula' in val && typeof val.formula === 'string') {
-      return cell.text || '';
     }
   }
   return cell.text || '';
@@ -376,6 +377,15 @@ async function importFromExcelFile(
       const hAlign = cell.alignment?.horizontal;
       if (hAlign === 'left' || hAlign === 'center' || hAlign === 'right') {
         style.align = hAlign as ColumnAlign;
+        hasStyle = true;
+      }
+
+      const vAlign = cell.alignment?.vertical;
+      if (vAlign === 'top' || vAlign === 'middle' || vAlign === 'bottom') {
+        style.verticalAlign = vAlign as VerticalAlign;
+        hasStyle = true;
+      } else if ((vAlign as string | undefined) === 'center') {
+        style.verticalAlign = 'middle';
         hasStyle = true;
       }
 

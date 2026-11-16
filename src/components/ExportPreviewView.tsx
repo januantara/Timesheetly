@@ -23,6 +23,7 @@ import {
   buildDefaultTimesheetFilename,
   formatDateIndonesian,
 } from '../lib/formatters';
+import { getSheetCellDisplayValue } from '../lib/sheetFormulas';
 import { cellKey, getMergeCoveringCell } from '../lib/sheetTemplate';
 import type { SavedExportReport, SheetTemplate } from '../types';
 import { ExcelSheetEditor } from './ExcelSheetEditor';
@@ -733,7 +734,7 @@ export function ExportPreviewView({
                     }
                     const cellData = draft.sheet.cells[cellKey(r, c)];
                     const st = cellData?.style;
-                    const text = cellData?.value ?? '';
+                    const text = getSheetCellDisplayValue(draft.sheet, r, c);
 
                     return (
                       <td
@@ -742,6 +743,7 @@ export function ExportPreviewView({
                         rowSpan={rowSpan}
                         style={{
                           textAlign: st?.align ?? 'left',
+                          verticalAlign: st?.verticalAlign ?? 'middle',
                           fontWeight: st?.bold ? 700 : 400,
                           fontStyle: st?.italic ? 'italic' : 'normal',
                           fontSize: `${st?.fontSize ?? 11}px`,
@@ -753,7 +755,7 @@ export function ExportPreviewView({
                           height: `${cellMinHeightPx}px`,
                           boxSizing: 'border-box',
                         }}
-                        className="px-2 py-1 align-middle whitespace-pre-line break-words"
+                        className="px-2 py-1 whitespace-pre-line break-words"
                       >
                         {text || '\u00A0'}
                       </td>

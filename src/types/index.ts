@@ -19,6 +19,9 @@ export interface ActivityEntry {
   remark: string;
   status: ActivityStatus;
   pic: string;
+  isHoliday?: boolean;
+  rowColor?: string;
+  attAbsenFlag?: string;
   customValues: Record<string, string>;
   createdAt: string;
   updatedAt: string;
@@ -41,6 +44,7 @@ export type CanonicalFieldKey =
   | 'pic';
 
 export type ColumnAlign = 'left' | 'center' | 'right';
+export type VerticalAlign = 'top' | 'middle' | 'bottom';
 
 export interface ColumnConfig {
   id: string;
@@ -60,6 +64,7 @@ export interface SheetCellStyle {
   bold?: boolean;
   italic?: boolean;
   align?: ColumnAlign;
+  verticalAlign?: VerticalAlign;
   bgColor?: string;
   textColor?: string;
   border?: boolean;

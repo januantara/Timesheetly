@@ -4,9 +4,14 @@ import { ActivitiesView } from './components/ActivitiesView';
 import { ActivityModal } from './components/ActivityModal';
 import { BackupModal } from './components/BackupModal';
 import { DeleteAccountModal } from './components/DeleteAccountModal';
+import { DigiHcImportModal } from './components/DigiHcImportModal';
 import { ExportPreviewView } from './components/ExportPreviewView';
 import { ExportVendorModal } from './components/ExportVendorModal';
 import { ImportActivitiesModal } from './components/ImportActivitiesModal';
+import {
+  MergeActivityModal,
+  type ActivityDateConflict,
+} from './components/MergeActivityModal';
 import { ProfileLoginView } from './components/ProfileLoginView';
 import { Sidebar } from './components/Sidebar';
 import { Toast, type ToastMessage } from './components/Toast';
@@ -26,10 +31,15 @@ import {
   saveExportReport,
   saveSettings,
   saveVendorProfile,
-  sortActivitiesDescending,
+  sortActivitiesAscending,
   sortSavedExportsDescending,
 } from './lib/db';
-import { filterActivities } from './lib/formatters';
+import {
+  HOLIDAY_ROW_COLOR,
+  mergeActivityEntries,
+  type DigiHcParsedRecord,
+} from './lib/digihcImport';
+import { calculateDurationMinutes, filterActivities } from './lib/formatters';
 import { ASSET_PATHS, DEFAULT_PROFILE_NAME } from './lib/seedData';
 import { buildLoopedSheetFromTemplate } from './lib/sheetTemplate';
 import type {
@@ -79,6 +89,18 @@ export default function App() {
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ActivityEntry | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [digiHcModalOpen, setDigiHcModalOpen] = useState(false);
+  const [pendingSingleMerge, setPendingSingleMerge] = useState<{
+    existing: ActivityEntry;
+    incoming: ActivityEntry;
+    editingOriginalId?: string;
+  } | null>(null);
+  const [pendingBatchMerge, setPendingBatchMerge] = useState<{
+    conflicts: ActivityDateConflict[];
+    autoUpserts: ActivityEntry[];
+    brandNew: ActivityEntry[];
+  } | null>(null);
+  const [mergeBusy, setMergeBusy] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [backupModalOpen, setBackupModalOpen] = useState(false);
@@ -146,6 +168,13 @@ export default function App() {
     );
   }, [activities, normalizedActiveAccount]);
 
+  const visibleOwnActivitiesCount = useMemo(
+    () =>
+      ownActivities.filter((item) => !item.isHoliday || item.activity.trim().length > 0)
+        .length,
+    [ownActivities]
+  );
+
   const ownSavedExports = useMemo(() => {
     if (!normalizedActiveAccount) return savedExports;
     return savedExports.filter(
@@ -164,6 +193,19 @@ export default function App() {
         settings.defaultPicName,
         activeDateFormat,
         activeTimeFormat
+      ),
+    [activities, filter, settings.defaultPicName, activeDateFormat, activeTimeFormat]
+  );
+
+  const exportFilteredActivities = useMemo(
+    () =>
+      filterActivities(
+        activities,
+        filter,
+        settings.defaultPicName,
+        activeDateFormat,
+        activeTimeFormat,
+        { includeEmptyHolidays: true }
       ),
     [activities, filter, settings.defaultPicName, activeDateFormat, activeTimeFormat]
   );
@@ -384,38 +426,343 @@ export default function App() {
     }
   };
 
-  const handleSaveActivity = async (entry: ActivityEntry) => {
+  const handleSaveActivity = async (entry: ActivityEntry): Promise<boolean> => {
     // Enforce active account ownership when saving from current session
     const ownedEntry: ActivityEntry = {
       ...entry,
       pic: entry.pic.trim() || settings.defaultPicName,
     };
+
+    const picLower = ownedEntry.pic.trim().toLowerCase();
+    const existingSameDate = activities.find(
+      (item) =>
+        item.pic.trim().toLowerCase() === picLower &&
+        item.date === ownedEntry.date &&
+        item.id !== ownedEntry.id
+    );
+
+    if (existingSameDate) {
+      if (existingSameDate.activity.trim() && ownedEntry.activity.trim()) {
+        setPendingSingleMerge({
+          existing: existingSameDate,
+          incoming: ownedEntry,
+          editingOriginalId: editingEntry?.id,
+        });
+        return false;
+      }
+
+      // Existing entry on that date has empty activity (e.g. DigiHC check-in/out or LIB placeholder), or incoming is an empty holiday flag: upsert cleanly
+      const resolvedHoliday =
+        ownedEntry.isHoliday !== undefined
+          ? ownedEntry.isHoliday
+          : existingSameDate.isHoliday;
+      const upserted: ActivityEntry = {
+        ...ownedEntry,
+        id: existingSameDate.id,
+        activity: ownedEntry.activity.trim() || existingSameDate.activity,
+        remark: ownedEntry.activity.trim() || existingSameDate.remark,
+        createdAt: existingSameDate.createdAt,
+        isHoliday: resolvedHoliday || undefined,
+        rowColor: resolvedHoliday ? HOLIDAY_ROW_COLOR : undefined,
+        attAbsenFlag: resolvedHoliday
+          ? 'LIB'
+          : ownedEntry.attAbsenFlag ?? existingSameDate.attAbsenFlag,
+      };
+      await saveActivity(upserted);
+      if (editingEntry && editingEntry.id !== existingSameDate.id) {
+        await deleteActivity(editingEntry.id);
+      }
+      setActivities((prev) =>
+        sortActivitiesAscending(
+          prev
+            .filter((item) => item.id !== editingEntry?.id || item.id === existingSameDate.id)
+            .map((item) => (item.id === existingSameDate.id ? upserted : item))
+        )
+      );
+      showNotify(
+        'success',
+        upserted.isHoliday && !upserted.activity.trim()
+          ? 'Hari libur (LIB) disimpan. Tampil dengan warna #A6A6A6 saat ekspor.'
+          : 'Aktivitas timesheet disimpan (upsert) ke tanggal tersebut.'
+      );
+      return true;
+    }
+
     await saveActivity(ownedEntry);
     setActivities((prev) => {
       const exists = prev.some((item) => item.id === ownedEntry.id);
       const next = exists
         ? prev.map((item) => (item.id === ownedEntry.id ? ownedEntry : item))
-        : [ownedEntry, ...prev];
-      return sortActivitiesDescending(next);
+        : [...prev, ownedEntry];
+      return sortActivitiesAscending(next);
     });
     if (ownedEntry.pic && ownedEntry.pic !== settings.defaultPicName) {
       const nextSettings: AppSettings = { ...settings, defaultPicName: ownedEntry.pic };
       setSettings(nextSettings);
       await saveSettings(nextSettings);
     }
-    showNotify('success', 'Aktivitas timesheet disimpan ke IndexedDB.');
-  };
-
-  const handleImportActivitiesBatch = async (entries: ActivityEntry[]) => {
-    const ownedEntries = entries.map((entry) => ({
-      ...entry,
-      pic: entry.pic.trim() || settings.defaultPicName,
-    }));
-    await saveActivitiesBatch(ownedEntries);
-    setActivities((prev) => sortActivitiesDescending([...ownedEntries, ...prev]));
     showNotify(
       'success',
-      `${ownedEntries.length} aktivitas berhasil diimpor ke IndexedDB.`
+      ownedEntry.isHoliday && !ownedEntry.activity.trim()
+        ? 'Hari libur (LIB) disimpan. Disembunyikan di Timesheet dan akan tampil warna #A6A6A6 saat ekspor.'
+        : 'Aktivitas timesheet disimpan ke IndexedDB.'
+    );
+    return true;
+  };
+
+  const handleResolveSingleMerge = async (mode: 'merge' | 'replace') => {
+    if (!pendingSingleMerge || mergeBusy) return;
+    setMergeBusy(true);
+    try {
+      const { existing, incoming, editingOriginalId } = pendingSingleMerge;
+      const nowIso = new Date().toISOString();
+      const finalEntry: ActivityEntry =
+        mode === 'merge'
+          ? mergeActivityEntries(existing, incoming)
+          : {
+              ...incoming,
+              id: existing.id,
+              createdAt: existing.createdAt,
+              isHoliday: existing.isHoliday,
+              rowColor: existing.rowColor,
+              attAbsenFlag: existing.attAbsenFlag,
+              updatedAt: nowIso,
+            };
+
+      await saveActivity(finalEntry);
+      if (editingOriginalId && editingOriginalId !== existing.id) {
+        await deleteActivity(editingOriginalId);
+      }
+
+      setActivities((prev) =>
+        sortActivitiesAscending(
+          prev
+            .filter((item) => !editingOriginalId || item.id !== editingOriginalId || item.id === existing.id)
+            .map((item) => (item.id === existing.id ? finalEntry : item))
+        )
+      );
+
+      setPendingSingleMerge(null);
+      setActivityModalOpen(false);
+      setEditingEntry(null);
+      showNotify(
+        'success',
+        mode === 'merge'
+          ? `Aktivitas tanggal ${existing.date} berhasil di-merge.`
+          : `Aktivitas tanggal ${existing.date} berhasil diperbarui.`
+      );
+    } catch {
+      showNotify('error', 'Gagal menyimpan perubahan aktivitas.');
+    } finally {
+      setMergeBusy(false);
+    }
+  };
+
+  const handleImportActivitiesBatch = async (
+    entries: ActivityEntry[]
+  ): Promise<boolean> => {
+    const activePic = settings.defaultPicName.trim() || DEFAULT_PROFILE_NAME;
+    const activePicLower = activePic.toLowerCase();
+
+    // Deduplicate entries within the imported payload itself by date
+    const dedupedByDate = new Map<string, ActivityEntry>();
+    for (const rawEntry of entries) {
+      const owned: ActivityEntry = {
+        ...rawEntry,
+        pic: rawEntry.pic.trim() || activePic,
+      };
+      const prevInBatch = dedupedByDate.get(owned.date);
+      dedupedByDate.set(
+        owned.date,
+        prevInBatch ? mergeActivityEntries(prevInBatch, owned) : owned
+      );
+    }
+
+    const existingByDate = new Map<string, ActivityEntry>();
+    for (const item of activities) {
+      if (item.pic.trim().toLowerCase() === activePicLower && !existingByDate.has(item.date)) {
+        existingByDate.set(item.date, item);
+      }
+    }
+
+    const conflicts: ActivityDateConflict[] = [];
+    const autoUpserts: ActivityEntry[] = [];
+    const brandNew: ActivityEntry[] = [];
+
+    for (const incoming of dedupedByDate.values()) {
+      const existing = existingByDate.get(incoming.date);
+      if (!existing) {
+        brandNew.push(incoming);
+      } else if (!existing.activity.trim()) {
+        autoUpserts.push(mergeActivityEntries(existing, incoming));
+      } else {
+        conflicts.push({ existing, incoming });
+      }
+    }
+
+    if (conflicts.length > 0) {
+      setPendingBatchMerge({ conflicts, autoUpserts, brandNew });
+      return false;
+    }
+
+    const toPersist = [...autoUpserts, ...brandNew];
+    if (toPersist.length > 0) {
+      await saveActivitiesBatch(toPersist);
+      const byId = new Map(toPersist.map((item) => [item.id, item]));
+      setActivities((prev) =>
+        sortActivitiesAscending([
+          ...prev.filter((item) => !byId.has(item.id)),
+          ...toPersist,
+        ])
+      );
+    }
+    showNotify(
+      'success',
+      `${toPersist.length} aktivitas berhasil disimpan ke IndexedDB.`
+    );
+    return true;
+  };
+
+  const handleResolveBatchMerge = async (mode: 'merge' | 'replace' | 'skip') => {
+    if (!pendingBatchMerge || mergeBusy) return;
+    setMergeBusy(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const { conflicts, autoUpserts, brandNew } = pendingBatchMerge;
+      const resolvedConflicts: ActivityEntry[] =
+        mode === 'skip'
+          ? []
+          : conflicts.map(({ existing, incoming }) =>
+              mode === 'merge'
+                ? mergeActivityEntries(existing, incoming)
+                : {
+                    ...incoming,
+                    id: existing.id,
+                    startTime: incoming.startTime || existing.startTime,
+                    endTime: incoming.endTime || existing.endTime,
+                    durationMinutes:
+                      (incoming.startTime || existing.startTime) &&
+                      (incoming.endTime || existing.endTime)
+                        ? calculateDurationMinutes(
+                            incoming.startTime || existing.startTime,
+                            incoming.endTime || existing.endTime
+                          )
+                        : 0,
+                    createdAt: existing.createdAt,
+                    isHoliday: existing.isHoliday,
+                    rowColor: existing.rowColor,
+                    attAbsenFlag: existing.attAbsenFlag,
+                    updatedAt: nowIso,
+                  }
+            );
+
+      const toPersist = [...resolvedConflicts, ...autoUpserts, ...brandNew];
+      if (toPersist.length > 0) {
+        await saveActivitiesBatch(toPersist);
+        const byId = new Map(toPersist.map((item) => [item.id, item]));
+        setActivities((prev) =>
+          sortActivitiesAscending([
+            ...prev.filter((item) => !byId.has(item.id)),
+            ...toPersist,
+          ])
+        );
+      }
+
+      setPendingBatchMerge(null);
+      setImportModalOpen(false);
+      showNotify(
+        'success',
+        toPersist.length > 0
+          ? `${toPersist.length} aktivitas berhasil disimpan (upsert).`
+          : 'Tidak ada aktivitas baru yang ditambahkan.'
+      );
+    } catch {
+      showNotify('error', 'Gagal menyimpan hasil impor aktivitas.');
+    } finally {
+      setMergeBusy(false);
+    }
+  };
+
+  const handleApplyDigiHcRecords = async (records: DigiHcParsedRecord[]) => {
+    const activePic = settings.defaultPicName.trim() || DEFAULT_PROFILE_NAME;
+    const activePicLower = activePic.toLowerCase();
+    const nowIso = new Date().toISOString();
+
+    const existingByDate = new Map<string, ActivityEntry>();
+    for (const item of activities) {
+      if (item.pic.trim().toLowerCase() === activePicLower && !existingByDate.has(item.date)) {
+        existingByDate.set(item.date, item);
+      }
+    }
+
+    const toPersist: ActivityEntry[] = [];
+    records.forEach((rec, idx) => {
+      const existing = existingByDate.get(rec.date);
+      if (existing) {
+        if (rec.isHoliday) {
+          toPersist.push({
+            ...existing,
+            startTime: '08:00',
+            endTime: '17:00',
+            durationMinutes: calculateDurationMinutes('08:00', '17:00'),
+            isHoliday: true,
+            rowColor: HOLIDAY_ROW_COLOR,
+            attAbsenFlag: 'LIB',
+            updatedAt: nowIso,
+          });
+        } else {
+          const nextStart = rec.startTime || existing.startTime;
+          const nextEnd = rec.endTime || existing.endTime;
+          const nextDur =
+            nextStart && nextEnd ? calculateDurationMinutes(nextStart, nextEnd) : 0;
+          toPersist.push({
+            ...existing,
+            startTime: nextStart,
+            endTime: nextEnd,
+            durationMinutes: nextDur,
+            isHoliday: false,
+            rowColor: undefined,
+            attAbsenFlag: rec.attAbsenFlag,
+            updatedAt: nowIso,
+          });
+        }
+      } else {
+        toPersist.push({
+          id: `act-digihc-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+          date: rec.date,
+          startTime: rec.startTime,
+          endTime: rec.endTime,
+          durationMinutes: rec.durationMinutes,
+          project: '',
+          category: '',
+          activity: '',
+          remark: '',
+          status: '',
+          pic: activePic,
+          isHoliday: rec.isHoliday || undefined,
+          rowColor: rec.rowColor,
+          attAbsenFlag: rec.attAbsenFlag,
+          customValues: {},
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        });
+      }
+    });
+
+    await saveActivitiesBatch(toPersist);
+    const byId = new Map(toPersist.map((item) => [item.id, item]));
+    setActivities((prev) =>
+      sortActivitiesAscending([
+        ...prev.filter((item) => !byId.has(item.id)),
+        ...toPersist,
+      ])
+    );
+
+    const holidayTotal = records.filter((r) => r.isHoliday).length;
+    const workTotal = records.length - holidayTotal;
+    showNotify(
+      'success',
+      `Data DigiHC diterapkan: ${workTotal} hari kerja dan ${holidayTotal} hari libur (LIB).`
     );
   };
 
@@ -526,7 +873,7 @@ export default function App() {
     approvedByName: string;
   }) => {
     const rowsToExport =
-      selectedActivities.length > 0 ? selectedActivities : filteredActivities;
+      selectedActivities.length > 0 ? selectedActivities : exportFilteredActivities;
     const loopedSheet = buildLoopedSheetFromTemplate(vendor, rowsToExport, {
       periodLabel,
       preparedByName,
@@ -608,7 +955,7 @@ export default function App() {
   };
 
   const activitiesForExportModal =
-    selectedActivities.length > 0 ? selectedActivities : filteredActivities;
+    selectedActivities.length > 0 ? selectedActivities : exportFilteredActivities;
 
   const deleteTargetStats = useMemo(() => {
     if (!deleteTargetAccount) {
@@ -670,7 +1017,7 @@ export default function App() {
           }
           setCurrentView(view);
         }}
-        activityCount={ownActivities.length}
+        activityCount={visibleOwnActivitiesCount}
         vendorCount={vendorProfiles.length}
         savedExportCount={ownSavedExports.length}
         activeVendor={activeVendor}
@@ -894,7 +1241,8 @@ export default function App() {
             </div>
           ) : currentView === 'activities' ? (
             <ActivitiesView
-              ownActivitiesCount={ownActivities.length}
+              ownActivitiesCount={visibleOwnActivitiesCount}
+              exportableCount={exportFilteredActivities.length}
               filteredActivities={filteredActivities}
               filter={filter}
               onFilterChange={setFilter}
@@ -917,6 +1265,7 @@ export default function App() {
               onCopyPrompt={handleCopyExtractionPrompt}
               promptCopied={promptCopied}
               onOpenImportModal={() => setImportModalOpen(true)}
+              onOpenDigiHcModal={() => setDigiHcModalOpen(true)}
               dateFormat={activeDateFormat}
               timeFormat={activeTimeFormat}
               onChangeFormats={handleUpdateDisplayFormats}
@@ -952,6 +1301,7 @@ export default function App() {
       <ActivityModal
         open={activityModalOpen}
         initialEntry={editingEntry}
+        existingActivities={ownActivities}
         defaultPicName={settings.defaultPicName}
         vendorProfiles={vendorProfiles}
         savedCustomKeys={savedCustomKeys}
@@ -974,6 +1324,56 @@ export default function App() {
         timeFormat={activeTimeFormat}
         onImportEntries={handleImportActivitiesBatch}
         onNotify={showNotify}
+      />
+
+      <DigiHcImportModal
+        open={digiHcModalOpen}
+        onClose={() => setDigiHcModalOpen(false)}
+        activeAccountName={settings.defaultPicName}
+        existingActivities={ownActivities}
+        dateFormat={activeDateFormat}
+        timeFormat={activeTimeFormat}
+        onApplyDigiHc={handleApplyDigiHcRecords}
+        onNotify={showNotify}
+      />
+
+      <MergeActivityModal
+        open={Boolean(pendingSingleMerge || pendingBatchMerge)}
+        conflicts={
+          pendingSingleMerge
+            ? [
+                {
+                  existing: pendingSingleMerge.existing,
+                  incoming: pendingSingleMerge.incoming,
+                },
+              ]
+            : pendingBatchMerge?.conflicts ?? []
+        }
+        autoUpsertCount={pendingBatchMerge?.autoUpserts.length ?? 0}
+        newCount={pendingBatchMerge?.brandNew.length ?? 0}
+        dateFormat={activeDateFormat}
+        timeFormat={activeTimeFormat}
+        busy={mergeBusy}
+        onMerge={() => {
+          if (pendingSingleMerge) {
+            return handleResolveSingleMerge('merge');
+          }
+          return handleResolveBatchMerge('merge');
+        }}
+        onReplace={() => {
+          if (pendingSingleMerge) {
+            return handleResolveSingleMerge('replace');
+          }
+          return handleResolveBatchMerge('replace');
+        }}
+        onSkipConflicts={
+          pendingBatchMerge ? () => handleResolveBatchMerge('skip') : undefined
+        }
+        onCancel={() => {
+          if (mergeBusy) return;
+          setPendingSingleMerge(null);
+          setPendingBatchMerge(null);
+        }}
       />
 
       <ExportVendorModal

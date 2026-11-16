@@ -3,6 +3,9 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  AlignVerticalJustifyCenter,
+  AlignVerticalJustifyEnd,
+  AlignVerticalJustifyStart,
   Bold,
   Check,
   ChevronDown,
@@ -15,11 +18,20 @@ import {
   Redo2,
   Repeat,
   Rows3,
+  Sigma,
   SplitSquareHorizontal,
   Trash2,
   Undo2,
 } from 'lucide-react';
 import { STARTER_LOGO_PRESETS } from '../lib/seedData';
+import {
+  evaluateSheetCell,
+  getSheetCellDisplayValue,
+  shiftFormulaOnColDelete,
+  shiftFormulaOnColInsert,
+  shiftFormulaOnRowDelete,
+  shiftFormulaOnRowInsert,
+} from '../lib/sheetFormulas';
 import {
   ACTIVITY_DATA_TAGS,
   cellKey,
@@ -36,6 +48,7 @@ import type {
   SheetImage,
   SheetMergeRange,
   SheetTemplate,
+  VerticalAlign,
 } from '../types';
 
 interface ExcelSheetEditorProps {
@@ -140,7 +153,8 @@ function measureAutoFitColumnWidth(
     }
     const startR = merge ? merge.startRow : r;
     const cellData = sheet.cells[cellKey(startR, colIndex)];
-    const val = cellData?.value ?? '';
+    const rawVal = cellData?.value ?? '';
+    const val = getSheetCellDisplayValue(sheet, startR, colIndex);
     if (!val.trim()) continue;
 
     foundSingleColContent = true;
@@ -148,7 +162,7 @@ function measureAutoFitColumnWidth(
     const fontSize = st?.fontSize ?? 11;
     const fontWeight = st?.bold ? '700' : '400';
     const fontStyle = st?.italic ? 'italic' : 'normal';
-    const hasToken = mode === 'template' && /\{\{[^}]+\}\}/.test(val);
+    const hasToken = mode === 'template' && /\{\{[^}]+\}\}/.test(rawVal);
     const fontFamily = hasToken
       ? '"JetBrains Mono", ui-monospace, monospace'
       : '"Public Sans", ui-sans-serif, system-ui, sans-serif';
@@ -166,7 +180,8 @@ function measureAutoFitColumnWidth(
       const merge = getMergeCoveringCell(sheet.merges, r, colIndex);
       if (!merge) continue;
       const cellData = sheet.cells[cellKey(merge.startRow, merge.startCol)];
-      const val = cellData?.value ?? '';
+      const rawVal = cellData?.value ?? '';
+      const val = getSheetCellDisplayValue(sheet, merge.startRow, merge.startCol);
       if (!val.trim()) continue;
 
       const colSpan = Math.max(1, merge.endCol - merge.startCol + 1);
@@ -174,7 +189,7 @@ function measureAutoFitColumnWidth(
       const fontSize = st?.fontSize ?? 11;
       const fontWeight = st?.bold ? '700' : '400';
       const fontStyle = st?.italic ? 'italic' : 'normal';
-      const hasToken = mode === 'template' && /\{\{[^}]+\}\}/.test(val);
+      const hasToken = mode === 'template' && /\{\{[^}]+\}\}/.test(rawVal);
       const fontFamily = hasToken
         ? '"JetBrains Mono", ui-monospace, monospace'
         : '"Public Sans", ui-sans-serif, system-ui, sans-serif';
@@ -227,11 +242,12 @@ function measureAutoFitRowHeight(
       }
 
       const cellData = sheet.cells[cellKey(rowIndex, c)];
-      const val = cellData?.value ?? '';
+      const rawVal = cellData?.value ?? '';
+      const val = getSheetCellDisplayValue(sheet, rowIndex, c);
       if (!val.trim()) continue;
 
       const st = cellData?.style;
-      const hasToken = mode === 'template' && /\{\{[^}]+\}\}/.test(val);
+      const hasToken = mode === 'template' && /\{\{[^}]+\}\}/.test(rawVal);
       probe.style.width = `${Math.max(24, cellWidth)}px`;
       probe.style.fontSize = `${st?.fontSize ?? 11}px`;
       probe.style.fontWeight = st?.bold ? '700' : '400';
@@ -262,6 +278,8 @@ export function ExcelSheetEditor({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const borderMenuRef = useRef<HTMLDivElement>(null);
+  const formulaMenuRef = useRef<HTMLDivElement>(null);
+  const formulaInputRef = useRef<HTMLInputElement>(null);
   const sheetRef = useRef(sheet);
   sheetRef.current = sheet;
 
@@ -286,6 +304,7 @@ export function ExcelSheetEditor({
   const [showImageMenu, setShowImageMenu] = useState(false);
   const [showTagMenu, setShowTagMenu] = useState(false);
   const [showBorderMenu, setShowBorderMenu] = useState(false);
+  const [showFormulaMenu, setShowFormulaMenu] = useState(false);
   const [borderWidthInput, setBorderWidthInput] = useState<string>('1');
   const [customTagInput, setCustomTagInput] = useState('');
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
@@ -320,6 +339,7 @@ export function ExcelSheetEditor({
     colorSessionPushedRef.current = false;
     borderSessionPushedRef.current = false;
     setShowBorderMenu(false);
+    setShowFormulaMenu(false);
     setAdditionalRanges([]);
     setEditingCell(null);
   }, [historyKey]);
@@ -451,6 +471,29 @@ export function ExcelSheetEditor({
     };
   }, [showBorderMenu]);
 
+  useEffect(() => {
+    if (!showFormulaMenu) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (
+        formulaMenuRef.current &&
+        !formulaMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowFormulaMenu(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowFormulaMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [showFormulaMenu]);
+
   const canUndo = history.past.length > 0;
   const canRedo = history.future.length > 0;
 
@@ -547,6 +590,18 @@ export function ExcelSheetEditor({
     setShowTagMenu(false);
   };
 
+  const insertFormulaPreset = (templateText: string, selStart: number, selEnd: number) => {
+    setCellValue(selection.startRow, selection.startCol, templateText, true);
+    setShowFormulaMenu(false);
+    requestAnimationFrame(() => {
+      const input = formulaInputRef.current;
+      if (input) {
+        input.focus();
+        input.setSelectionRange(selStart, selEnd);
+      }
+    });
+  };
+
   const handleInsertColumn = (atIndex: number) => {
     commitChange((prev) => {
       const nextWidths = [...prev.colWidths];
@@ -557,7 +612,10 @@ export function ExcelSheetEditor({
         const [rStr, cStr] = k.split(',');
         const r = Number(rStr);
         const c = Number(cStr);
-        nextCells[cellKey(r, c >= atIndex ? c + 1 : c)] = v;
+        nextCells[cellKey(r, c >= atIndex ? c + 1 : c)] = {
+          ...v,
+          value: shiftFormulaOnColInsert(v.value, atIndex),
+        };
       }
 
       const nextMerges = prev.merges.map((m) => ({
@@ -584,7 +642,10 @@ export function ExcelSheetEditor({
         const r = Number(rStr);
         const c = Number(cStr);
         if (c === colIndex) continue;
-        nextCells[cellKey(r, c > colIndex ? c - 1 : c)] = v;
+        nextCells[cellKey(r, c > colIndex ? c - 1 : c)] = {
+          ...v,
+          value: shiftFormulaOnColDelete(v.value, colIndex),
+        };
       }
       const nextMerges: SheetMergeRange[] = [];
       for (const m of prev.merges) {
@@ -611,7 +672,10 @@ export function ExcelSheetEditor({
         const [rStr, cStr] = k.split(',');
         const r = Number(rStr);
         const c = Number(cStr);
-        nextCells[cellKey(r >= atIndex ? r + 1 : r, c)] = v;
+        nextCells[cellKey(r >= atIndex ? r + 1 : r, c)] = {
+          ...v,
+          value: shiftFormulaOnRowInsert(v.value, atIndex),
+        };
       }
 
       const nextMerges = prev.merges.map((m) => ({
@@ -650,7 +714,10 @@ export function ExcelSheetEditor({
         const r = Number(rStr);
         const c = Number(cStr);
         if (r === rowIndex) continue;
-        nextCells[cellKey(r > rowIndex ? r - 1 : r, c)] = v;
+        nextCells[cellKey(r > rowIndex ? r - 1 : r, c)] = {
+          ...v,
+          value: shiftFormulaOnRowDelete(v.value, rowIndex),
+        };
       }
       const nextMerges: SheetMergeRange[] = [];
       for (const m of prev.merges) {
@@ -1315,6 +1382,50 @@ export function ExcelSheetEditor({
           })}
         </div>
 
+        <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-md p-0.5">
+          {(
+            [
+              {
+                value: 'top',
+                icon: AlignVerticalJustifyStart,
+                label: 'Rata Atas',
+              },
+              {
+                value: 'middle',
+                icon: AlignVerticalJustifyCenter,
+                label: 'Rata Tengah Vertikal',
+              },
+              {
+                value: 'bottom',
+                icon: AlignVerticalJustifyEnd,
+                label: 'Rata Bawah',
+              },
+            ] as {
+              value: VerticalAlign;
+              icon: typeof AlignVerticalJustifyStart;
+              label: string;
+            }[]
+          ).map((va) => {
+            const Icon = va.icon;
+            const active = (activeStyle.verticalAlign ?? 'middle') === va.value;
+            return (
+              <button
+                key={va.value}
+                type="button"
+                onClick={() => applyStyleToSelection({ verticalAlign: va.value })}
+                title={va.label}
+                className={`p-1.5 rounded ${
+                  active
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1">
           <span className="text-[11px] text-slate-500">Latar</span>
           <input
@@ -1652,8 +1763,119 @@ export function ExcelSheetEditor({
         <div className="px-2.5 py-1 rounded border border-slate-200 bg-white font-mono text-xs font-semibold text-slate-700 tabular-nums min-w-[54px] text-center">
           {selectionLabel}
         </div>
+
+        <div ref={formulaMenuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setShowFormulaMenu((v) => !v);
+              setShowTagMenu(false);
+              setShowImageMenu(false);
+              setShowBorderMenu(false);
+            }}
+            title="Sisipkan Rumus (SUM, COUNT, COUNTIF, SUMIF)"
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors whitespace-nowrap ${
+              showFormulaMenu
+                ? 'border-blue-600 bg-blue-50 text-blue-700'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <Sigma className="h-3.5 w-3.5 text-blue-600" />
+            <span>Rumus</span>
+            <ChevronDown
+              className={`h-3 w-3 text-slate-400 transition-transform ${
+                showFormulaMenu ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {showFormulaMenu && (
+            <div className="absolute left-0 top-full mt-1.5 z-40 w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-2 space-y-1">
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                Sisipkan Rumus ke Sel {selectionLabel}
+              </div>
+              {(() => {
+                const colLetter = colIndexToLetter(selection.startCol);
+                const endRowNum = Math.max(2, selection.startRow);
+                const defaultRange = `${colLetter}2:${colLetter}${endRowNum}`;
+                const prevColLetter =
+                  selection.startCol > 0
+                    ? colIndexToLetter(selection.startCol - 1)
+                    : colLetter;
+                const prevRange = `${prevColLetter}2:${prevColLetter}${endRowNum}`;
+
+                const formulaPresets = [
+                  {
+                    name: 'SUM',
+                    syntax: `=SUM(${defaultRange})`,
+                    desc: 'Menjumlahkan angka atau durasi (HH:mm) pada rentang sel',
+                    selStart: 5,
+                    selEnd: 5 + defaultRange.length,
+                  },
+                  {
+                    name: 'COUNT',
+                    syntax: `=COUNT(${defaultRange})`,
+                    desc: 'Menghitung jumlah sel yang berisi angka atau durasi',
+                    selStart: 7,
+                    selEnd: 7 + defaultRange.length,
+                  },
+                  {
+                    name: 'COUNTIF',
+                    syntax: `=COUNTIF(${defaultRange}, "kriteria")`,
+                    desc: 'Menghitung sel yang memenuhi kondisi tertentu (mis. "PRJ-01", ">2")',
+                    selStart: 9,
+                    selEnd: 9 + defaultRange.length,
+                  },
+                  {
+                    name: 'SUMIF',
+                    syntax: `=SUMIF(${prevRange}, "kriteria", ${defaultRange})`,
+                    desc: 'Menjumlahkan nilai pada rentang hasil sesuai kriteria',
+                    selStart: 7,
+                    selEnd: 7 + prevRange.length,
+                  },
+                  {
+                    name: 'COUNTA',
+                    syntax: `=COUNTA(${defaultRange})`,
+                    desc: 'Menghitung seluruh sel yang tidak kosong (teks maupun angka)',
+                    selStart: 8,
+                    selEnd: 8 + defaultRange.length,
+                  },
+                ];
+
+                return formulaPresets.map((preset) => (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() =>
+                      insertFormulaPreset(
+                        preset.syntax,
+                        preset.selStart,
+                        preset.selEnd
+                      )
+                    }
+                    className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-blue-50/70 transition-colors border border-transparent hover:border-blue-100"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-bold text-blue-700">
+                        {preset.name}
+                      </span>
+                      <span className="font-mono text-[11px] text-slate-600 truncate">
+                        {preset.syntax}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      {preset.desc}
+                    </div>
+                  </button>
+                ));
+              })()}
+            </div>
+          )}
+        </div>
+
         <span className="font-mono text-xs text-slate-400">fx</span>
         <input
+          ref={formulaInputRef}
           type="text"
           value={activeCellData.value ?? ''}
           onFocus={() => {
@@ -1684,11 +1906,31 @@ export function ExcelSheetEditor({
           }}
           placeholder={
             mode === 'template'
-              ? 'Ketik teks bebas atau sisipkan data seperti {{tanggal}}, {{activity}}...'
-              : 'Edit isi sel secara langsung...'
+              ? 'Ketik teks, tag {{tanggal}}, atau rumus =SUM(...), =COUNT(...), =COUNTIF(...), =SUMIF(...)'
+              : 'Ketik teks atau rumus =SUM(...), =COUNT(...), =COUNTIF(...), =SUMIF(...)'
           }
           className="flex-1 px-2.5 py-1 rounded border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:border-blue-600"
         />
+        {(() => {
+          const activeEval = evaluateSheetCell(
+            sheet,
+            selection.startRow,
+            selection.startCol
+          );
+          if (!activeEval.isFormula) return null;
+          return (
+            <div
+              className={`px-2 py-1 rounded border font-mono text-[11px] font-semibold whitespace-nowrap ${
+                activeEval.isError
+                  ? 'border-red-200 bg-red-50 text-red-700'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              }`}
+              title="Hasil evaluasi rumus saat ini"
+            >
+              = {activeEval.display}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Interactive Excel Grid Area */}
@@ -1827,6 +2069,7 @@ export function ExcelSheetEditor({
                 setShowTagMenu(false);
                 setShowImageMenu(false);
                 setShowBorderMenu(false);
+                setShowFormulaMenu(false);
               }}
             >
               <table
@@ -1853,6 +2096,7 @@ export function ExcelSheetEditor({
                         const cellData = sheet.cells[k];
                         const st = cellData?.style;
                         const val = cellData?.value ?? '';
+                        const cellEval = evaluateSheetCell(sheet, rIdx, cIdx);
 
                         const cellEndRow = rIdx + rowSpan - 1;
                         const cellEndCol = cIdx + colSpan - 1;
@@ -1920,8 +2164,11 @@ export function ExcelSheetEditor({
                             style={{
                               backgroundColor:
                                 st?.bgColor || (isSelected ? '#eff6ff' : '#ffffff'),
-                              color: st?.textColor || '#0f172a',
+                              color: cellEval.isError
+                                ? '#dc2626'
+                                : st?.textColor || '#0f172a',
                               textAlign: st?.align || 'left',
+                              verticalAlign: st?.verticalAlign || 'middle',
                               fontWeight: st?.bold ? 700 : 400,
                               fontStyle: st?.italic ? 'italic' : 'normal',
                               fontSize: `${st?.fontSize ?? 11}px`,
@@ -1934,7 +2181,7 @@ export function ExcelSheetEditor({
                                 ? 'inset 0 0 0 1.5px #60a5fa'
                                 : undefined,
                             }}
-                            className="relative px-1.5 py-0.5 align-middle overflow-hidden"
+                            className="relative px-1.5 py-0.5 overflow-hidden"
                           >
                             {isEditing ? (
                               <input
@@ -1980,6 +2227,11 @@ export function ExcelSheetEditor({
                               />
                             ) : (
                               <div
+                                title={
+                                  cellEval.isFormula
+                                    ? `Rumus: ${val} → ${cellEval.display}`
+                                    : undefined
+                                }
                                 style={{
                                   maxHeight: `${Math.max(16, h * rowSpan - 4)}px`,
                                 }}
@@ -1987,7 +2239,7 @@ export function ExcelSheetEditor({
                                   hasToken ? 'font-mono text-[11px]' : ''
                                 }`}
                               >
-                                {val}
+                                {cellEval.display}
                               </div>
                             )}
                           </td>

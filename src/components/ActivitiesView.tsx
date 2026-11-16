@@ -15,6 +15,7 @@ import {
   TIME_FORMAT_OPTIONS,
   formatDateByPattern,
   formatDurationDecimalHours,
+  formatTimeByPattern,
   formatTimeRangeByPattern,
   getIndonesianDayName,
 } from '../lib/formatters';
@@ -30,6 +31,7 @@ import { DateRangePicker } from './DateRangePicker';
 
 interface ActivitiesViewProps {
   ownActivitiesCount: number;
+  exportableCount?: number;
   filteredActivities: ActivityEntry[];
   filter: ActivityFilterState;
   onFilterChange: (next: ActivityFilterState) => void;
@@ -46,6 +48,7 @@ interface ActivitiesViewProps {
   onCopyPrompt: () => Promise<void> | void;
   promptCopied?: boolean;
   onOpenImportModal: () => void;
+  onOpenDigiHcModal: () => void;
   dateFormat: DateDisplayFormat;
   timeFormat: TimeDisplayFormat;
   onChangeFormats: (next: {
@@ -56,6 +59,7 @@ interface ActivitiesViewProps {
 
 export function ActivitiesView({
   ownActivitiesCount,
+  exportableCount,
   filteredActivities,
   filter,
   onFilterChange,
@@ -72,6 +76,7 @@ export function ActivitiesView({
   onCopyPrompt,
   promptCopied = false,
   onOpenImportModal,
+  onOpenDigiHcModal,
   dateFormat,
   timeFormat,
   onChangeFormats,
@@ -306,6 +311,16 @@ export function ActivitiesView({
 
             <button
               type="button"
+              onClick={onOpenDigiHcModal}
+              title="Masukan data Check-In dan Check-Out dari DigiHC"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+            >
+              <Clock className="h-3.5 w-3.5 text-slate-500" />
+              <span>Check-In/Out DigiHC</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onAddNew}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors whitespace-nowrap shrink-0"
             >
@@ -316,7 +331,7 @@ export function ActivitiesView({
             <button
               type="button"
               onClick={onOpenExportModal}
-              disabled={filteredActivities.length === 0 && selectedIds.size === 0}
+              disabled={(exportableCount ?? filteredActivities.length) === 0 && selectedIds.size === 0}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 disabled:opacity-40"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -407,12 +422,27 @@ export function ActivitiesView({
                 {filteredActivities.map((entry) => {
                   const checked = selectedIds.has(entry.id);
                   const dayName = getIndonesianDayName(entry.date);
+                  const holidayBg =
+                    entry.rowColor || (entry.isHoliday ? '#A6A6A6' : undefined);
+                  const timeDisplay =
+                    entry.startTime && !entry.endTime
+                      ? `${formatTimeByPattern(entry.startTime, timeFormat)} - ...`
+                      : formatTimeRangeByPattern(
+                          entry.startTime,
+                          entry.endTime,
+                          timeFormat
+                        ) || '-';
 
                   return (
                     <tr
                       key={entry.id}
-                      className={`transition-colors hover:bg-slate-50/80 ${
-                        checked ? 'bg-blue-50/40' : ''
+                      style={holidayBg ? { backgroundColor: holidayBg } : undefined}
+                      className={`transition-colors ${
+                        holidayBg
+                          ? ''
+                          : checked
+                          ? 'bg-blue-50/40 hover:bg-blue-50/60'
+                          : 'hover:bg-slate-50/80'
                       }`}
                     >
                       <td className="py-3 pl-4 pr-2 align-top">
@@ -427,23 +457,38 @@ export function ActivitiesView({
                       <td className="py-3 px-3 align-top font-mono text-xs font-medium text-slate-900 tabular-nums whitespace-nowrap">
                         {formatDateByPattern(entry.date, dateFormat)}
                       </td>
-                      <td className="py-3 px-3 align-top text-xs font-medium text-slate-700 whitespace-nowrap">
-                        {dayName}
+                      <td className="py-3 px-3 align-top text-xs font-medium text-slate-800 whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <span>{dayName}</span>
+                          {entry.isHoliday && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-slate-800 text-white">
+                              LIB
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="py-3 px-3 align-top font-mono text-xs text-slate-700 tabular-nums whitespace-nowrap">
-                        {formatTimeRangeByPattern(entry.startTime, entry.endTime, timeFormat)}
+                      <td className="py-3 px-3 align-top font-mono text-xs text-slate-800 tabular-nums whitespace-nowrap">
+                        {timeDisplay}
                       </td>
                       <td className="py-3 px-3 align-top text-sm text-slate-900 leading-snug">
-                        <div
-                          style={{
-                            textAlign: entry.activityFormat?.align ?? 'left',
-                            fontWeight: entry.activityFormat?.bold ? 700 : 400,
-                            fontStyle: entry.activityFormat?.italic ? 'italic' : 'normal',
-                          }}
-                          className="whitespace-pre-wrap break-words"
-                        >
-                          {entry.activity}
-                        </div>
+                        {entry.activity.trim() ? (
+                          <div
+                            style={{
+                              textAlign: entry.activityFormat?.align ?? 'left',
+                              fontWeight: entry.activityFormat?.bold ? 700 : 400,
+                              fontStyle: entry.activityFormat?.italic
+                                ? 'italic'
+                                : 'normal',
+                            }}
+                            className="whitespace-pre-wrap break-words"
+                          >
+                            {entry.activity}
+                          </div>
+                        ) : (
+                          <div className="text-xs italic text-slate-400">
+                            Belum ada isi activity (klik Edit untuk mengisi)
+                          </div>
+                        )}
                         {(entry.project?.trim() ||
                           entry.category?.trim() ||
                           entry.status?.trim() ||

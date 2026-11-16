@@ -447,20 +447,20 @@ export async function initializeAndLoadData(): Promise<{
   }
 
   return {
-    activities: sortActivitiesDescending(activities),
+    activities: sortActivitiesAscending(activities),
     vendorProfiles: vendors,
     savedExports: sortSavedExportsDescending(savedExports),
     settings,
   };
 }
 
-export function sortActivitiesDescending(items: ActivityEntry[]): ActivityEntry[] {
+export function sortActivitiesAscending(items: ActivityEntry[]): ActivityEntry[] {
   return [...items].sort((a, b) => {
-    const dateDiff = b.date.localeCompare(a.date);
+    const dateDiff = a.date.localeCompare(b.date);
     if (dateDiff !== 0) return dateDiff;
-    const timeDiff = b.startTime.localeCompare(a.startTime);
+    const timeDiff = a.startTime.localeCompare(b.startTime);
     if (timeDiff !== 0) return timeDiff;
-    return b.createdAt.localeCompare(a.createdAt);
+    return a.createdAt.localeCompare(b.createdAt);
   });
 }
 
@@ -571,7 +571,7 @@ export async function restoreFullBackup(payload: BackupPayload): Promise<{
   ]);
 
   return {
-    activities: sortActivitiesDescending(activities),
+    activities: sortActivitiesAscending(activities),
     vendorProfiles,
     savedExports: sortSavedExportsDescending(savedExports),
     settings,
@@ -600,7 +600,7 @@ export async function resetToSampleData(): Promise<{
   ]);
 
   return {
-    activities: sortActivitiesDescending(INITIAL_ACTIVITIES),
+    activities: sortActivitiesAscending(INITIAL_ACTIVITIES),
     vendorProfiles: INITIAL_VENDOR_PROFILES,
     savedExports: [],
     settings,

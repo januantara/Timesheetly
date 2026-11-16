@@ -46,13 +46,14 @@ interface ManualDetailRow {
 interface ActivityModalProps {
   open: boolean;
   initialEntry: ActivityEntry | null;
+  existingActivities: ActivityEntry[];
   defaultPicName: string;
   vendorProfiles: VendorProfile[];
   savedCustomKeys: string[];
   onSaveCustomKey: (key: string) => Promise<void>;
   onRemoveCustomKey: (key: string) => Promise<void>;
   onClose: () => void;
-  onSave: (entry: ActivityEntry) => Promise<void>;
+  onSave: (entry: ActivityEntry) => Promise<boolean>;
 }
 
 function extractCustomFields(vendorProfiles: VendorProfile[]): CustomFieldDef[] {
@@ -86,6 +87,7 @@ function toTitleCase(input: string): string {
 export function ActivityModal({
   open,
   initialEntry,
+  existingActivities,
   defaultPicName,
   vendorProfiles,
   savedCustomKeys,
@@ -99,6 +101,9 @@ export function ActivityModal({
   const [date, setDate] = useState(getTodayIsoDate());
   const [startTime, setStartTime] = useState('08:30');
   const [endTime, setEndTime] = useState('10:30');
+  const [timeTouched, setTimeTouched] = useState(false);
+  const [isHoliday, setIsHoliday] = useState(false);
+  const [holidayTouched, setHolidayTouched] = useState(false);
   const [activity, setActivity] = useState('');
   const [activityFormat, setActivityFormat] = useState<ActivityTextFormat>({
     bold: false,
@@ -130,6 +135,7 @@ export function ActivityModal({
       setDate(initialEntry.date);
       setStartTime(initialEntry.startTime);
       setEndTime(initialEntry.endTime);
+      setIsHoliday(Boolean(initialEntry.isHoliday));
       setActivity(initialEntry.activity);
       setActivityFormat({
         bold: Boolean(initialEntry.activityFormat?.bold),
@@ -182,6 +188,7 @@ export function ActivityModal({
       setDate(getTodayIsoDate());
       setStartTime('08:30');
       setEndTime('10:30');
+      setIsHoliday(false);
       setActivity('');
       setActivityFormat({ bold: false, italic: false, align: 'left' });
       setProject('');
@@ -205,11 +212,34 @@ export function ActivityModal({
       setNewValueInput('');
       setShowExtras(initialSavedRows.length > 0);
     }
+    setTimeTouched(false);
+    setHolidayTouched(false);
     setCaseMode(0);
     setError('');
   }, [open, initialEntry]);
 
+  useEffect(() => {
+    if (!open || initialEntry || !date) return;
+    const match = existingActivities.find((item) => item.date === date);
+    if (!holidayTouched) {
+      setIsHoliday(Boolean(match?.isHoliday));
+    }
+    if (!timeTouched) {
+      if (match && !match.activity.trim() && (match.startTime || match.endTime)) {
+        setStartTime(match.startTime || '');
+        setEndTime(match.endTime || '');
+      } else if (match?.isHoliday) {
+        setStartTime('08:00');
+        setEndTime('17:00');
+      }
+    }
+  }, [open, initialEntry, timeTouched, holidayTouched, date, existingActivities]);
+
   if (!open) return null;
+
+  const sameDateExisting = existingActivities.find(
+    (item) => item.date === date && item.id !== initialEntry?.id
+  );
 
   const durationMinutes = calculateDurationMinutes(startTime, endTime);
   const dayName = getIndonesianDayName(date);
@@ -450,7 +480,7 @@ export function ActivityModal({
       setError('Tanggal wajib diisi.');
       return;
     }
-    if (!activity.trim()) {
+    if (!isHoliday && !activity.trim()) {
       setError('Isi activity tidak boleh kosong.');
       return;
     }
@@ -493,12 +523,21 @@ export function ActivityModal({
         remark: trimmedActivity,
         status: status.trim(),
         pic: initialEntry?.pic || defaultPicName || 'Akun Saya',
+        isHoliday,
+        rowColor: isHoliday ? '#A6A6A6' : undefined,
+        attAbsenFlag: isHoliday
+          ? 'LIB'
+          : initialEntry?.attAbsenFlag === 'LIB'
+          ? 'H'
+          : initialEntry?.attAbsenFlag,
         customValues: mergedCustomValues,
         createdAt: initialEntry?.createdAt ?? nowIso,
         updatedAt: nowIso,
       };
-      await onSave(entry);
-      onClose();
+      const shouldClose = await onSave(entry);
+      if (shouldClose) {
+        onClose();
+      }
     } catch {
       setError('Gagal menyimpan ke IndexedDB. Coba lagi.');
     } finally {
@@ -577,7 +616,10 @@ export function ActivityModal({
               <input
                 type="time"
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={(e) => {
+                  setTimeTouched(true);
+                  setStartTime(e.target.value);
+                }}
                 aria-label="Jam mulai"
                 className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
               />
@@ -585,18 +627,96 @@ export function ActivityModal({
               <input
                 type="time"
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
+                onChange={(e) => {
+                  setTimeTouched(true);
+                  setEndTime(e.target.value);
+                }}
                 aria-label="Jam selesai"
                 className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
               />
             </div>
           </div>
 
+          {/* Flag Hari Libur (LIB) */}
+          <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-slate-100/60 cursor-pointer transition-colors">
+            <input
+              type="checkbox"
+              checked={isHoliday}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setHolidayTouched(true);
+                setIsHoliday(next);
+                if (!timeTouched) {
+                  if (next) {
+                    setStartTime('08:00');
+                    setEndTime('17:00');
+                  } else {
+                    setStartTime(initialEntry?.startTime || '08:30');
+                    setEndTime(initialEntry?.endTime || '10:30');
+                  }
+                }
+              }}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+            />
+            <div className="flex-1 min-w-0 text-xs">
+              <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-800">
+                <span>Tandai sebagai Hari Libur (LIB)</span>
+                <span
+                  className="inline-block px-1.5 py-0.5 rounded font-mono text-[10px] text-slate-900 border border-slate-300"
+                  style={{ backgroundColor: '#A6A6A6' }}
+                >
+                  #A6A6A6
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                Ditampilkan dengan warna baris <span className="font-mono">#A6A6A6</span> pada hasil ekspor (08:00 - 17:00). Pada halaman Timesheet hanya tampil jika terdapat isi activity.
+              </p>
+            </div>
+          </label>
+
+          {sameDateExisting && (
+            <div
+              className={`p-3 rounded-lg border text-xs leading-relaxed ${
+                sameDateExisting.activity.trim()
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : 'border-blue-200 bg-blue-50 text-blue-900'
+              }`}
+            >
+              {sameDateExisting.activity.trim() ? (
+                <>
+                  Tanggal ini sudah memiliki aktivitas tersimpan. Saat menekan{' '}
+                  <span className="font-semibold">Simpan</span>, Anda akan diminta konfirmasi apakah ingin menggabungkan (merge) aktivitasnya.
+                </>
+              ) : sameDateExisting.isHoliday ? (
+                <>
+                  Tanggal ini ditandai sebagai <span className="font-semibold">Hari Libur (LIB)</span> dengan jam{' '}
+                  <span className="font-mono font-semibold">08:00 - 17:00</span> dan warna baris{' '}
+                  <span className="font-mono font-semibold">#A6A6A6</span>. Menambahkan aktivitas akan menampilkan tanggal ini di Timesheet.
+                </>
+              ) : (
+                <>
+                  Tanggal ini sudah memiliki data check-in/out DigiHC (
+                  <span className="font-mono font-semibold">
+                    {sameDateExisting.startTime || '-'} s/d {sameDateExisting.endTime || 'Belum Check-Out'}
+                  </span>
+                  ). Isi aktivitas akan digabungkan ke tanggal ini.
+                </>
+              )}
+            </div>
+          )}
+
           {/* Activity + Text Formatting Toolbar */}
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
               <label className="block text-xs font-medium text-slate-700">
-                Activity <span className="text-red-500">*</span>
+                Activity{' '}
+                {isHoliday ? (
+                  <span className="text-[11px] font-normal text-slate-400">
+                    (opsional untuk hari libur)
+                  </span>
+                ) : (
+                  <span className="text-red-500">*</span>
+                )}
               </label>
               <span className="text-[11px] text-slate-400">
                 Format teks & daftar poin

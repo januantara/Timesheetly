@@ -270,9 +270,11 @@ export function filterActivities(
   filter: ActivityFilterState,
   activeAccountName = '',
   dateFormat: DateDisplayFormat = 'yyyy-mm-dd',
-  timeFormat: TimeDisplayFormat = 'HH:mm'
+  timeFormat: TimeDisplayFormat = 'HH:mm',
+  options?: { includeEmptyHolidays?: boolean }
 ): ActivityEntry[] {
   const now = new Date();
+  const includeEmptyHolidays = Boolean(options?.includeEmptyHolidays);
 
   let startBound = '';
   let endBound = '';
@@ -297,6 +299,10 @@ export function filterActivities(
       if (item.pic.trim().toLowerCase() !== normalizedAccount) {
         return false;
       }
+    }
+
+    if (!includeEmptyHolidays && item.isHoliday && !item.activity.trim()) {
+      return false;
     }
 
     if (startBound && item.date < startBound) {

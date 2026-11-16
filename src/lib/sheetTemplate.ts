@@ -18,6 +18,10 @@ import {
   getIndonesianDayName,
   lookupCustomValue,
 } from './formatters';
+import {
+  isFormulaValue,
+  remapFormulaForLoopExpansion,
+} from './sheetFormulas';
 
 export interface SheetRenderMeta {
   periodLabel: string;
@@ -453,7 +457,13 @@ export function buildLoopedSheetFromTemplate(
   // Track original row top Y and output row top Y so images shift accurately across any number of loop rows
   const origRowTop: number[] = [];
   const outRowStart: number[] = [];
+  const outRowEnd: number[] = [];
   const outRowTop: number[] = [];
+  const formulaRemapQueue: {
+    key: string;
+    origRow: number;
+    outRow: number;
+  }[] = [];
 
   let accOrigY = 0;
   for (let r = 0; r < rowCount; r++) {
@@ -483,6 +493,7 @@ export function buildLoopedSheetFromTemplate(
             outRowStart[br] = outRow;
             outRowTop[br] = accOutY;
           }
+          outRowEnd[br] = outRow;
           const h = tpl.rowHeights[br] || 32;
           outRowHeights.push(h);
           accOutY += h;
@@ -494,22 +505,38 @@ export function buildLoopedSheetFromTemplate(
                 Boolean(entry?.activityFormat) &&
                 /\{\{activity\}\}/i.test(srcCell.value);
               const nextStyle = srcCell.style ? { ...srcCell.style } : undefined;
+              const holidayRowColor =
+                entry?.rowColor || (entry?.isHoliday ? '#A6A6A6' : undefined);
+              const baseStyle = holidayRowColor
+                ? { ...(nextStyle ?? {}), bgColor: holidayRowColor }
+                : nextStyle;
               const mergedStyle =
                 hasActivityToken && entry?.activityFormat
                   ? {
-                      ...(nextStyle ?? {}),
+                      ...(baseStyle ?? {}),
                       ...(entry.activityFormat.bold ? { bold: true } : {}),
                       ...(entry.activityFormat.italic ? { italic: true } : {}),
                       ...(entry.activityFormat.align
                         ? { align: entry.activityFormat.align }
                         : {}),
                     }
-                  : nextStyle;
+                  : baseStyle;
 
-              outCells[cellKey(outRow, c)] = {
-                value: resolveSheetCellText(srcCell.value, profile, entry, idx, renderMeta),
+              const targetK = cellKey(outRow, c);
+              const resolvedValue = resolveSheetCellText(
+                srcCell.value,
+                profile,
+                entry,
+                idx,
+                renderMeta
+              );
+              outCells[targetK] = {
+                value: resolvedValue,
                 style: mergedStyle,
               };
+              if (isFormulaValue(resolvedValue)) {
+                formulaRemapQueue.push({ key: targetK, origRow: br, outRow });
+              }
             }
           }
           outRow++;
@@ -531,6 +558,7 @@ export function buildLoopedSheetFromTemplate(
       r = blockEnd + 1;
     } else {
       outRowStart[r] = outRow;
+      outRowEnd[r] = outRow;
       outRowTop[r] = accOutY;
       const h = tpl.rowHeights[r] || 24;
       outRowHeights.push(h);
@@ -539,10 +567,21 @@ export function buildLoopedSheetFromTemplate(
       for (let c = 0; c < colCount; c++) {
         const srcCell = tpl.cells[cellKey(r, c)];
         if (srcCell) {
-          outCells[cellKey(outRow, c)] = {
-            value: resolveSheetCellText(srcCell.value, profile, null, 0, renderMeta),
+          const targetK = cellKey(outRow, c);
+          const resolvedValue = resolveSheetCellText(
+            srcCell.value,
+            profile,
+            null,
+            0,
+            renderMeta
+          );
+          outCells[targetK] = {
+            value: resolvedValue,
             style: srcCell.style ? { ...srcCell.style } : undefined,
           };
+          if (isFormulaValue(resolvedValue)) {
+            formulaRemapQueue.push({ key: targetK, origRow: r, outRow });
+          }
         }
       }
 
@@ -561,6 +600,20 @@ export function buildLoopedSheetFromTemplate(
       outRow++;
       r++;
     }
+  }
+
+  // Rewrite formula cell references after outRowStart/outRowEnd are completely built
+  for (const item of formulaRemapQueue) {
+    const cellObj = outCells[item.key];
+    if (!cellObj) continue;
+    const isInsideLoop = loopSet.has(item.origRow);
+    cellObj.value = remapFormulaForLoopExpansion(
+      cellObj.value,
+      outRowStart,
+      outRowEnd,
+      isInsideLoop ? item.origRow : undefined,
+      isInsideLoop ? item.outRow : undefined
+    );
   }
 
   const totalOrigHeight = accOrigY;

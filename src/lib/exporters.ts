@@ -13,6 +13,11 @@ import {
   sanitizeExportFilename,
 } from './formatters';
 import {
+  evaluateSheetCell,
+  getSheetCellDisplayValue,
+  toExcelFormulaString,
+} from './sheetFormulas';
+import {
   buildLoopedSheetFromTemplate,
   cellKey,
   getMergeCoveringCell,
@@ -126,7 +131,7 @@ function applyCellStyleToExcel(
 
   excelCell.alignment = {
     horizontal: st?.align ?? 'left',
-    vertical: 'middle',
+    vertical: st?.verticalAlign ?? 'middle',
     wrapText: true,
   };
 
@@ -235,13 +240,28 @@ export async function exportSheetToExcel(
 
     for (let c = 0; c < colCount; c++) {
       const cellData = sheet.cells[cellKey(r, c)];
-      const val = cellData?.value ?? '';
+      const rawVal = cellData?.value ?? '';
+      const evalRes = evaluateSheetCell(sheet, r, c);
       const cell = excelRow.getCell(c + 1);
-      cell.value = val;
+
+      if (evalRes.isFormula) {
+        if (evalRes.numericValue !== null && !evalRes.isError) {
+          cell.value = {
+            formula: toExcelFormulaString(rawVal),
+            result: evalRes.numericValue,
+          };
+        } else {
+          cell.value = evalRes.display;
+        }
+      } else if (evalRes.numericValue !== null) {
+        cell.value = evalRes.numericValue;
+      } else {
+        cell.value = rawVal;
+      }
 
       const charWidth = Math.max(6, Math.round((sheet.colWidths[c] || 100) / 7.5));
-      const neededH = applyCellStyleToExcel(cell, cellData, charWidth, val);
-      if (val && neededH > maxHeight) {
+      const neededH = applyCellStyleToExcel(cell, cellData, charWidth, evalRes.display);
+      if (evalRes.display && neededH > maxHeight) {
         maxHeight = Math.max(maxHeight, neededH);
       }
     }
@@ -348,7 +368,7 @@ async function buildSheetHtmlParts(
 
       const cellData = sheet.cells[cellKey(r, c)];
       const st = cellData?.style;
-      const val = cellData?.value ?? '';
+      const val = getSheetCellDisplayValue(sheet, r, c);
 
       const css = [
         `text-align:${st?.align ?? 'left'}`,
@@ -363,7 +383,7 @@ async function buildSheetHtmlParts(
         `height:${cellMinHeightPx}px`,
         'box-sizing:border-box',
         'padding:4px 8px',
-        'vertical-align:middle',
+        `vertical-align:${st?.verticalAlign ?? 'middle'}`,
         'white-space:pre-line',
         'word-break:break-word',
       ]
