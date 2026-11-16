@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Check,
@@ -40,6 +40,7 @@ type ImportMode = 'json' | 'digihc';
 
 interface ImportActivitiesModalProps {
   open: boolean;
+  requestedTab?: ImportMode;
   onClose: () => void;
   activeAccountName: string;
   filter: ActivityFilterState;
@@ -54,6 +55,7 @@ interface ImportActivitiesModalProps {
 
 export function ImportActivitiesModal({
   open,
+  requestedTab,
   onClose,
   activeAccountName,
   filter,
@@ -66,6 +68,12 @@ export function ImportActivitiesModal({
   onNotify,
 }: ImportActivitiesModalProps) {
   const [activeTab, setActiveTab] = useState<ImportMode>('json');
+
+  useEffect(() => {
+    if (open && requestedTab) {
+      setActiveTab(requestedTab);
+    }
+  }, [open, requestedTab]);
 
   // JSON Activity import state
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
@@ -336,6 +344,7 @@ export function ImportActivitiesModal({
           <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200/70">
             <button
               type="button"
+              data-tour="import-tab-json"
               onClick={() => setActiveTab('json')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'json'
@@ -348,6 +357,7 @@ export function ImportActivitiesModal({
             </button>
             <button
               type="button"
+              data-tour="import-tab-digihc"
               onClick={() => setActiveTab('digihc')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                 activeTab === 'digihc'

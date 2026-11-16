@@ -85,3 +85,84 @@
     display: table-header-group;
   }
 }
+
+/* Driver.js Guided Tour Popover Styling */
+.driver-popover.timesheetly-driver-popover {
+  font-family: var(--font-sans);
+  max-width: 350px;
+  min-width: 280px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  box-shadow: 0 20px 25px -5px rgb(15 23 42 / 0.14), 0 8px 10px -6px rgb(15 23 42 / 0.1);
+  color: #0f172a;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  padding-right: 24px;
+  line-height: 1.4;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-description {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-close-btn {
+  top: 10px;
+  right: 10px;
+  color: #94a3b8;
+  border-radius: 6px;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-close-btn:hover {
+  color: #0f172a;
+  background-color: #f1f5f9;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-footer {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-progress-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #64748b;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-footer-btn {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  background-color: #ffffff;
+  text-shadow: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-footer-btn:hover {
+  background-color: #f8fafc;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-next-btn {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.driver-popover.timesheetly-driver-popover .driver-popover-next-btn:hover {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+}
+

@@ -134,7 +134,7 @@ export function sortSavedExportsDescending(items: SavedExportReport[]): SavedExp
   return [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const CURRENT_MIGRATION_VERSION = 6;
+const CURRENT_MIGRATION_VERSION = 7;
 
 const LEGACY_STARTER_VENDOR_NAMES = new Map<string, string>([
   ['vendor-nusantara', 'pt nusantara infrastruktur'],
@@ -381,6 +381,24 @@ function migrateRemoveDummySeedV6(
   };
 }
 
+function migrateDefaultVendorsV7(
+  vendors: VendorProfile[],
+  settings: AppSettings
+): { vendors: VendorProfile[]; settings: AppSettings } {
+  const defaultIds = new Set(INITIAL_VENDOR_PROFILES.map((v) => v.id));
+  const customVendors = vendors.filter((v) => !defaultIds.has(v.id));
+  const nextVendors = [
+    ...INITIAL_VENDOR_PROFILES.map((v) => structuredClone(v)),
+    ...customVendors,
+  ];
+  const hasActive = nextVendors.some((v) => v.id === settings.activeVendorId);
+  const nextSettings: AppSettings = hasActive
+    ? settings
+    : { ...settings, activeVendorId: nextVendors[0]?.id ?? '' };
+
+  return { vendors: nextVendors, settings: nextSettings };
+}
+
 export async function initializeAndLoadData(): Promise<{
   activities: ActivityEntry[];
   vendorProfiles: VendorProfile[];
@@ -453,6 +471,11 @@ export async function initializeAndLoadData(): Promise<{
         );
         activities = cleaned.activities;
         settings = cleaned.settings;
+      }
+      if (prevVersion < 7) {
+        const updatedVendors = migrateDefaultVendorsV7(vendors, settings);
+        vendors = updatedVendors.vendors;
+        settings = updatedVendors.settings;
       }
       settings = {
         ...settings,

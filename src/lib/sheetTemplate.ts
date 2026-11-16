@@ -487,6 +487,73 @@ function isEntryFieldPresent(
   return true;
 }
 
+function findTopLevelChar(text: string, targetChar: string): number {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text.startsWith('{{', i)) {
+      depth++;
+      i++;
+      continue;
+    }
+    if (text.startsWith('}}', i)) {
+      if (depth > 0) depth--;
+      i++;
+      continue;
+    }
+    if (depth === 0 && text[i] === targetChar) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function replaceBalancedConditionalTokens(
+  input: string,
+  evaluator: (rawKey: string, rawOutput: string) => string | null
+): string {
+  let out = '';
+  let i = 0;
+  while (i < input.length) {
+    if (input.startsWith('{{', i)) {
+      let depth = 1;
+      let j = i + 2;
+      while (j < input.length && depth > 0) {
+        if (input.startsWith('{{', j)) {
+          depth++;
+          j += 2;
+        } else if (input.startsWith('}}', j)) {
+          depth--;
+          j += 2;
+        } else {
+          j++;
+        }
+      }
+
+      if (depth === 0) {
+        const fullMatch = input.slice(i, j);
+        const inner = input.slice(i + 2, j - 2);
+        const colonIdx = findTopLevelChar(inner, ':');
+        if (colonIdx > 0) {
+          const rawKey = inner.slice(0, colonIdx);
+          const rawOutput = inner.slice(colonIdx + 1);
+          const evaluated = evaluator(rawKey, rawOutput);
+          if (evaluated !== null) {
+            out += evaluated;
+            i = j;
+            continue;
+          }
+        }
+        out += fullMatch;
+        i = j;
+        continue;
+      }
+    }
+    out += input[i];
+    i++;
+  }
+  return out;
+}
+
 function evaluateConditionalToken(
   rawKey: string,
   rawOutput: string,
@@ -498,7 +565,7 @@ function evaluateConditionalToken(
   const keyLower = keyTrimmed.toLowerCase();
   if (keyLower === 'custom') return null;
 
-  const pipeIdx = rawOutput.indexOf('|');
+  const pipeIdx = findTopLevelChar(rawOutput, '|');
   const trueText = pipeIdx >= 0 ? rawOutput.slice(0, pipeIdx) : rawOutput;
   const falseText = pipeIdx >= 0 ? rawOutput.slice(pipeIdx + 1) : '';
 
@@ -586,18 +653,14 @@ export function resolveSheetCellText(
     .replace(/\{\{total_jam\}\}/gi, totalDur);
 
   const hasActivity = Boolean(entry && entry.activity.trim().length > 0);
-  text = text
-    .replace(/\{\{([^{}:]+):([^}]*)\}\}/g, (fullMatch, rawKey: string, rawOutput: string) => {
-      const evaluated = evaluateConditionalToken(
-        rawKey,
-        rawOutput,
-        entry,
-        dateFormat,
-        timeFormat
-      );
-      return evaluated !== null ? evaluated : fullMatch;
-    })
-    .replace(/\{\{(?:status_hadir|hadir_p)\}\}/gi, hasActivity ? 'P' : '');
+  for (let pass = 0; pass < 3; pass++) {
+    const nextText = replaceBalancedConditionalTokens(text, (rawKey, rawOutput) =>
+      evaluateConditionalToken(rawKey, rawOutput, entry, dateFormat, timeFormat)
+    );
+    if (nextText === text) break;
+    text = nextText;
+  }
+  text = text.replace(/\{\{(?:status_hadir|hadir_p)\}\}/gi, hasActivity ? 'P' : '');
 
   if (entry) {
     text = text

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, LogOut, Menu, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, HelpCircle, LogOut, Menu, Trash2 } from 'lucide-react';
+import type { Driver } from 'driver.js';
 import { ActivitiesView } from './components/ActivitiesView';
 import { ActivityModal } from './components/ActivityModal';
 import { BackupModal } from './components/BackupModal';
@@ -40,6 +41,10 @@ import {
 } from './lib/digihcImport';
 import { calculateDurationMinutes, filterActivities } from './lib/formatters';
 import { ASSET_PATHS } from './lib/seedData';
+import {
+  startTemplateGenerationTour,
+  TOUR_STORAGE_KEY,
+} from './lib/onboardingTour';
 import { buildLoopedSheetFromTemplate } from './lib/sheetTemplate';
 import type {
   ActivityEntry,
@@ -89,6 +94,7 @@ export default function App() {
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ActivityEntry | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importModalTab, setImportModalTab] = useState<'json' | 'digihc'>('json');
   const [pendingSingleMerge, setPendingSingleMerge] = useState<{
     existing: ActivityEntry;
     incoming: ActivityEntry;
@@ -111,6 +117,7 @@ export default function App() {
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const driverRef = useRef<Driver | null>(null);
 
   const showNotify = (type: 'success' | 'error', message: string) => {
     const id = Date.now();
@@ -279,6 +286,59 @@ export default function App() {
 
   const isLoggedIn =
     Boolean(settings.defaultPicName.trim()) && settings.isLoggedIn !== false;
+
+  const handleStartTemplateTour = useCallback(() => {
+    try {
+      localStorage.setItem(TOUR_STORAGE_KEY, '1');
+    } catch {
+      // ignore storage failure
+    }
+    if (driverRef.current?.isActive()) {
+      driverRef.current.destroy();
+    }
+    setAccountMenuOpen(false);
+    setActivityModalOpen(false);
+    setBackupModalOpen(false);
+    setMobileNavOpen(false);
+
+    driverRef.current = startTemplateGenerationTour({
+      goToActivitiesView: () => setCurrentView('activities'),
+      openImportModal: (tab) => {
+        setImportModalTab(tab);
+        setImportModalOpen(true);
+      },
+      closeImportModal: () => setImportModalOpen(false),
+      openExportModal: () => setExportModalOpen(true),
+      closeExportModal: () => setExportModalOpen(false),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (loading || loadError || !isLoggedIn) return;
+    let alreadySeen = false;
+    try {
+      alreadySeen = localStorage.getItem(TOUR_STORAGE_KEY) === '1';
+    } catch {
+      alreadySeen = true;
+    }
+    if (alreadySeen) return;
+
+    const timer = window.setTimeout(() => {
+      handleStartTemplateTour();
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loading, loadError, isLoggedIn, handleStartTemplateTour]);
+
+  useEffect(() => {
+    return () => {
+      if (driverRef.current?.isActive()) {
+        driverRef.current.destroy();
+      }
+    };
+  }, []);
 
   const activeVendor = useMemo(
     () => vendorProfiles.find((v) => v.id === settings.activeVendorId) ?? vendorProfiles[0],
@@ -1088,8 +1148,19 @@ export default function App() {
             </h1>
           </div>
 
-          {/* Account Profile Switcher */}
-          <div className="relative shrink-0" ref={accountMenuRef}>
+          {/* Right Header Actions: Panduan Tour + Account Profile Switcher */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleStartTemplateTour}
+              title="Panduan langkah generate template laporan"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-blue-600" />
+              <span>Panduan</span>
+            </button>
+
+            <div className="relative shrink-0" ref={accountMenuRef}>
             <button
               type="button"
               onClick={() => {
@@ -1247,6 +1318,7 @@ export default function App() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </header>
 
@@ -1298,7 +1370,10 @@ export default function App() {
               onOpenExportModal={() => setExportModalOpen(true)}
               onCopyPrompt={handleCopyExtractionPrompt}
               promptCopied={promptCopied}
-              onOpenImportModal={() => setImportModalOpen(true)}
+              onOpenImportModal={() => {
+                setImportModalTab('json');
+                setImportModalOpen(true);
+              }}
               dateFormat={activeDateFormat}
               timeFormat={activeTimeFormat}
               onChangeFormats={handleUpdateDisplayFormats}
@@ -1350,6 +1425,7 @@ export default function App() {
 
       <ImportActivitiesModal
         open={importModalOpen}
+        requestedTab={importModalTab}
         onClose={() => setImportModalOpen(false)}
         activeAccountName={settings.defaultPicName}
         filter={filter}

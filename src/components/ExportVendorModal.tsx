@@ -244,7 +244,10 @@ export function ExportVendorModal({
             <label className="block text-xs font-semibold text-slate-700 mb-2">
               Pilih Template Vendor
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div
+              data-tour="export-vendor-list"
+              className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+            >
               {vendorProfiles.map((vendor) => {
                 const isSelected = vendor.id === selectedVendor?.id;
                 const tpl = ensureSheetTemplate(vendor);
@@ -326,6 +329,7 @@ export function ExportVendorModal({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                data-tour="export-download-pdf"
                 onClick={handleDownloadPdf}
                 disabled={busyAction !== null || !selectedVendor}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"

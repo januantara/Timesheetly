@@ -253,7 +253,10 @@ export function ActivitiesView({
       </div>
 
       {/* Table Card with Actions Directly Attached Above Table */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <div
+        data-tour="activities-table-card"
+        className="rounded-xl border border-slate-200 bg-white overflow-hidden"
+      >
         <div className="border-b border-slate-200 bg-white">
           <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-slate-600 font-mono tabular-nums">
@@ -266,6 +269,7 @@ export function ActivitiesView({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                data-tour="copy-prompt"
                 onClick={onCopyPrompt}
                 title="Salin prompt untuk mengekstrak tanggal & aktivitas dari folder project di root folder"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
@@ -280,6 +284,7 @@ export function ActivitiesView({
 
               <button
                 type="button"
+                data-tour="import-btn"
                 onClick={onOpenImportModal}
                 title="Impor aktivitas (JSON) atau check-in/out DigiHC (PDF / JSON)"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
@@ -299,6 +304,7 @@ export function ActivitiesView({
 
               <button
                 type="button"
+                data-tour="export-btn"
                 onClick={onOpenExportModal}
                 disabled={(exportableCount ?? filteredActivities.length) === 0 && selectedIds.size === 0}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 disabled:opacity-40"
@@ -400,6 +406,7 @@ export function ActivitiesView({
                   <th className="py-2.5 pl-4 pr-2 w-10">
                     <input
                       type="checkbox"
+                      data-tour="select-all-toggle"
                       checked={allFilteredSelected}
                       onChange={onToggleSelectAllFiltered}
                       aria-label="Pilih semua baris"

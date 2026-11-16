@@ -44,6 +44,10 @@ export const INITIAL_VENDOR_PROFILES: VendorProfile[] = (
   defaultVendorTemplatesJson as unknown as VendorProfile[]
 ).map((profile) => ({
   ...profile,
+  logoDataUrl:
+    profile.logoDataUrl === '/src/assets/images/logo_vendor_nusantara_1794655655772.jpg'
+      ? logoNusantaraImg
+      : profile.logoDataUrl,
   updatedAt: profile.updatedAt || new Date().toISOString(),
 }));
 

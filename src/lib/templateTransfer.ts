@@ -686,7 +686,7 @@ async function importFromExcelFile(
   const cells: Record<string, SheetCell> = {};
   const detectedLoopRows = new Set<number>();
   const activityTokenRegex =
-    /\{\{(?:no|tanggal|hari|jam|jam_mulai|jam_selesai|durasi|activity|remark|project_name|project_code|aplikasi_berdampak|proyek|kategori|status|pic|status_hadir|hadir_p|[^{}:]+:[^}]+)\}\}/i;
+    /\{\{(?:no|tanggal|hari|jam|jam_mulai|jam_selesai|durasi|activity|remark|project_name|project_code|aplikasi_berdampak|proyek|kategori|status|pic|status_hadir|hadir_p)\}\}|\{\{[^{}:]+:[\s\S]+\}\}/i;
 
   for (let r = 0; r < rowCount; r++) {
     const excelRow = ws.getRow(r + 1);
