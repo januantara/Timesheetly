@@ -637,8 +637,7 @@ export function ActivityModal({
             </div>
           </div>
 
-          {/* Flag Hari Libur (LIB) */}
-          <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50/70 hover:bg-slate-100/60 cursor-pointer transition-colors">
+          <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={isHoliday}
@@ -656,22 +655,9 @@ export function ActivityModal({
                   }
                 }
               }}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
             />
-            <div className="flex-1 min-w-0 text-xs">
-              <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-800">
-                <span>Tandai sebagai Hari Libur (LIB)</span>
-                <span
-                  className="inline-block px-1.5 py-0.5 rounded font-mono text-[10px] text-slate-900 border border-slate-300"
-                  style={{ backgroundColor: '#A6A6A6' }}
-                >
-                  #A6A6A6
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                Ditampilkan dengan warna baris <span className="font-mono">#A6A6A6</span> pada hasil ekspor (08:00 - 17:00). Pada halaman Timesheet hanya tampil jika terdapat isi activity.
-              </p>
-            </div>
+            <span>Tandai sebagai hari libur</span>
           </label>
 
           {sameDateExisting && (

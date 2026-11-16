@@ -218,7 +218,15 @@ export function ExportVendorModal({
               Ekspor Laporan Aktivitas
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              {activitiesToExport.length} baris aktivitas milik {activeAccountName} siap diekspor sesuai template vendor.
+              {(() => {
+                const holidayCount = activitiesToExport.filter((a) => a.isHoliday).length;
+                return (
+                  <>
+                    {activitiesToExport.length} baris milik {activeAccountName}
+                    {holidayCount > 0 ? ` (termasuk ${holidayCount} hari libur)` : ''} siap diekspor sesuai template vendor.
+                  </>
+                );
+              })()}
             </p>
           </div>
           <button

@@ -537,6 +537,13 @@ export function buildLoopedSheetFromTemplate(
               if (isFormulaValue(resolvedValue)) {
                 formulaRemapQueue.push({ key: targetK, origRow: br, outRow });
               }
+            } else if (entry?.rowColor || entry?.isHoliday) {
+              outCells[cellKey(outRow, c)] = {
+                value: '',
+                style: {
+                  bgColor: entry.rowColor || '#A6A6A6',
+                },
+              };
             }
           }
           outRow++;

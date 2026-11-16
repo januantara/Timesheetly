@@ -215,6 +215,43 @@ export default function App() {
     [filteredActivities, selectedIds]
   );
 
+  const activitiesForExport = useMemo(() => {
+    if (selectedActivities.length === 0) {
+      return exportFilteredActivities;
+    }
+
+    const allVisibleSelected =
+      filteredActivities.length > 0 &&
+      selectedActivities.length === filteredActivities.length;
+
+    if (allVisibleSelected) {
+      return exportFilteredActivities;
+    }
+
+    const selectedDates = selectedActivities.map((a) => a.date).sort();
+    const minDate = selectedDates[0];
+    const maxDate = selectedDates[selectedDates.length - 1];
+    const selectedIdSet = new Set(selectedActivities.map((a) => a.id));
+
+    const hiddenHolidaysInSpan = exportFilteredActivities.filter(
+      (item) =>
+        !selectedIdSet.has(item.id) &&
+        item.isHoliday &&
+        !item.activity.trim() &&
+        item.date >= minDate &&
+        item.date <= maxDate
+    );
+
+    if (hiddenHolidaysInSpan.length === 0) {
+      return selectedActivities;
+    }
+
+    return sortActivitiesAscending([
+      ...selectedActivities,
+      ...hiddenHolidaysInSpan,
+    ]);
+  }, [selectedActivities, filteredActivities, exportFilteredActivities]);
+
   const knownAccounts = useMemo(() => {
     const map = new Map<string, string>();
     const add = (name: string) => {
@@ -872,8 +909,7 @@ export default function App() {
     preparedByName: string;
     approvedByName: string;
   }) => {
-    const rowsToExport =
-      selectedActivities.length > 0 ? selectedActivities : exportFilteredActivities;
+    const rowsToExport = activitiesForExport;
     const loopedSheet = buildLoopedSheetFromTemplate(vendor, rowsToExport, {
       periodLabel,
       preparedByName,
@@ -954,8 +990,7 @@ export default function App() {
     export: 'Pratinjau & Ekspor Laporan',
   };
 
-  const activitiesForExportModal =
-    selectedActivities.length > 0 ? selectedActivities : exportFilteredActivities;
+  const activitiesForExportModal = activitiesForExport;
 
   const deleteTargetStats = useMemo(() => {
     if (!deleteTargetAccount) {
@@ -1243,6 +1278,7 @@ export default function App() {
             <ActivitiesView
               ownActivitiesCount={visibleOwnActivitiesCount}
               exportableCount={exportFilteredActivities.length}
+              selectedExportCount={activitiesForExport.length}
               filteredActivities={filteredActivities}
               filter={filter}
               onFilterChange={setFilter}

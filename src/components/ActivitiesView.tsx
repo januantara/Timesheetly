@@ -32,6 +32,7 @@ import { DateRangePicker } from './DateRangePicker';
 interface ActivitiesViewProps {
   ownActivitiesCount: number;
   exportableCount?: number;
+  selectedExportCount?: number;
   filteredActivities: ActivityEntry[];
   filter: ActivityFilterState;
   onFilterChange: (next: ActivityFilterState) => void;
@@ -60,6 +61,7 @@ interface ActivitiesViewProps {
 export function ActivitiesView({
   ownActivitiesCount,
   exportableCount,
+  selectedExportCount,
   filteredActivities,
   filter,
   onFilterChange,
@@ -254,8 +256,8 @@ export function ActivitiesView({
 
       {/* Table Card with Actions Directly Attached Above Table */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-white">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="border-b border-slate-200 bg-white">
+          <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-slate-600 font-mono tabular-nums">
               <span className="font-semibold text-slate-900">{filteredActivities.length}</span> baris ·{' '}
               <span className="font-semibold text-slate-900">
@@ -263,83 +265,88 @@ export function ActivitiesView({
               </span>
             </div>
 
-            {selectedIds.size > 0 && (
-              <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
-                <button
-                  type="button"
-                  onClick={onClearSelection}
-                  className="px-2 py-1 rounded text-xs font-medium text-slate-600 hover:bg-slate-100 whitespace-nowrap"
-                >
-                  Batal Pilih
-                </button>
-                <button
-                  type="button"
-                  onClick={onDeleteSelected}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-red-200 bg-red-50 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>Hapus ({selectedIds.size})</span>
-                </button>
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onCopyPrompt}
+                title="Salin prompt untuk mengekstrak tanggal & aktivitas dari folder project di root folder"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+              >
+                {promptCopied ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 text-slate-500" />
+                )}
+                <span>{promptCopied ? 'Prompt Disalin' : 'Copy Prompt'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenImportModal}
+                title="Impor aktivitas dari output JSON prompt"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+              >
+                <Upload className="h-3.5 w-3.5 text-slate-500" />
+                <span>Impor</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenDigiHcModal}
+                title="Masukan data Check-In dan Check-Out dari DigiHC"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+              >
+                <Clock className="h-3.5 w-3.5 text-slate-500" />
+                <span>Check-In/Out DigiHC</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onAddNew}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors whitespace-nowrap shrink-0"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Tambah Aktivitas</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenExportModal}
+                disabled={(exportableCount ?? filteredActivities.length) === 0 && selectedIds.size === 0}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 disabled:opacity-40"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                <span>
+                  {selectedIds.size > 0
+                    ? `Ekspor (${selectedExportCount ?? selectedIds.size})`
+                    : 'Ekspor'}
+                </span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onCopyPrompt}
-              title="Salin prompt untuk mengekstrak tanggal & aktivitas dari folder project di root folder"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
-            >
-              {promptCopied ? (
-                <Check className="h-3.5 w-3.5 text-emerald-600" />
-              ) : (
-                <Copy className="h-3.5 w-3.5 text-slate-500" />
-              )}
-              <span>{promptCopied ? 'Prompt Disalin' : 'Copy Prompt'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenImportModal}
-              title="Impor aktivitas dari output JSON prompt"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
-            >
-              <Upload className="h-3.5 w-3.5 text-slate-500" />
-              <span>Impor</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenDigiHcModal}
-              title="Masukan data Check-In dan Check-Out dari DigiHC"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
-            >
-              <Clock className="h-3.5 w-3.5 text-slate-500" />
-              <span>Check-In/Out DigiHC</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onAddNew}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors whitespace-nowrap shrink-0"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Tambah Aktivitas</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenExportModal}
-              disabled={(exportableCount ?? filteredActivities.length) === 0 && selectedIds.size === 0}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 disabled:opacity-40"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span>
-                {selectedIds.size > 0 ? `Ekspor (${selectedIds.size})` : 'Ekspor'}
+          {selectedIds.size > 0 && (
+            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-end gap-2">
+              <span className="text-xs text-slate-500 mr-auto">
+                <span className="font-semibold text-slate-700">{selectedIds.size}</span> baris dipilih
               </span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={onClearSelection}
+                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-100 whitespace-nowrap"
+              >
+                Batal Pilih
+              </button>
+              <button
+                type="button"
+                onClick={onDeleteSelected}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-red-200 bg-red-50 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Hapus ({selectedIds.size})</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {filteredActivities.length === 0 ? (

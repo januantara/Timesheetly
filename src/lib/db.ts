@@ -138,7 +138,45 @@ export function sortSavedExportsDescending(items: SavedExportReport[]): SavedExp
   return [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const CURRENT_MIGRATION_VERSION = 4;
+const CURRENT_MIGRATION_VERSION = 5;
+
+const LEGACY_STARTER_VENDOR_NAMES = new Map<string, string>([
+  ['vendor-nusantara', 'pt nusantara infrastruktur'],
+  ['vendor-cakrawala', 'pt cakrawala solusi digital'],
+  ['vendor-mandala', 'cv mandala logistik terpadu'],
+]);
+
+function migrateDefaultVendorsV5(
+  vendors: VendorProfile[],
+  settings: AppSettings
+): { vendors: VendorProfile[]; settings: AppSettings } {
+  const retained = vendors.filter((v) => {
+    const legacyName = LEGACY_STARTER_VENDOR_NAMES.get(v.id);
+    if (!legacyName) return true;
+    return v.vendorName.trim().toLowerCase() !== legacyName;
+  });
+
+  const existingIds = new Set(retained.map((v) => v.id));
+  const existingNames = new Set(retained.map((v) => v.vendorName.trim().toLowerCase()));
+
+  const additions: VendorProfile[] = [];
+  for (const def of INITIAL_VENDOR_PROFILES) {
+    const defName = def.vendorName.trim().toLowerCase();
+    if (!existingIds.has(def.id) && !existingNames.has(defName)) {
+      additions.push(structuredClone(def));
+      existingIds.add(def.id);
+      existingNames.add(defName);
+    }
+  }
+
+  const nextVendors = [...additions, ...retained];
+  const hasActive = nextVendors.some((v) => v.id === settings.activeVendorId);
+  const nextSettings: AppSettings = hasActive
+    ? settings
+    : { ...settings, activeVendorId: nextVendors[0]?.id ?? '' };
+
+  return { vendors: nextVendors, settings: nextSettings };
+}
 
 function removeSheetColumn(sheet: NonNullable<VendorProfile['sheetTemplate']>, colToRemove: number) {
   if (sheet.colWidths.length <= 1) return sheet;
@@ -432,6 +470,11 @@ export async function initializeAndLoadData(): Promise<{
         activities = migrated.activities;
         savedExports = migrated.exportsList;
         settings = migrated.settings;
+      }
+      if (prevVersion < 5) {
+        const migratedVendors = migrateDefaultVendorsV5(vendors, settings);
+        vendors = migratedVendors.vendors;
+        settings = migratedVendors.settings;
       }
       settings = {
         ...settings,

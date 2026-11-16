@@ -195,7 +195,7 @@ export function Sidebar({
             return (
               <div className="mx-2.5 mt-4 p-3 rounded-lg border border-slate-200 bg-slate-50/70">
                 <div className="text-xs font-medium text-slate-500 mb-2">
-                  Profil Ekspor Aktif
+                  Vendor Aktif
                 </div>
                 <div className="flex items-center gap-2.5">
                   {logoUrl ? (
