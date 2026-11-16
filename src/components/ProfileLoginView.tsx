@@ -40,7 +40,7 @@ export function ProfileLoginView({
     e.preventDefault();
     const trimmed = nameInput.trim();
     if (!trimmed) {
-      setError('Nama profil wajib diisi untuk masuk.');
+      setError('Username wajib diisi untuk masuk.');
       return;
     }
     setError('');
@@ -70,7 +70,9 @@ export function ProfileLoginView({
                 Masuk ke Timesheetly
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Pilih profil tersimpan atau masuk dengan nama profil baru
+                {accounts.length > 0
+                  ? 'Pilih username tersimpan atau masukkan username baru'
+                  : 'Masukkan username Anda terlebih dahulu untuk memulai'}
               </p>
             </div>
           </div>
@@ -148,7 +150,9 @@ export function ProfileLoginView({
               className="flex items-center gap-1.5 text-xs font-semibold text-slate-700"
             >
               <UserPlus className="h-3.5 w-3.5 text-slate-400" />
-              <span>Masuk / Buat Profil Baru</span>
+              <span>
+                {accounts.length > 0 ? 'Masuk / Buat Username Baru' : 'Username'}
+              </span>
             </label>
 
             {error && (
@@ -161,12 +165,13 @@ export function ProfileLoginView({
               <input
                 id="profile-login-name"
                 type="text"
+                autoFocus={accounts.length === 0}
                 value={nameInput}
                 onChange={(e) => {
                   setNameInput(e.target.value);
                   if (error) setError('');
                 }}
-                placeholder="Masukkan nama profil..."
+                placeholder="Masukkan username..."
                 className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
               />
               <button

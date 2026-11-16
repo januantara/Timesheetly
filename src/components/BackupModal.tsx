@@ -88,7 +88,7 @@ export function BackupModal({
     try {
       await onResetSample();
       setConfirmReset(false);
-      onNotify('success', 'Data contoh awal telah dipulihkan.');
+      onNotify('success', 'Data aplikasi telah direset ke pengaturan awal.');
       onClose();
     } catch {
       onNotify('error', 'Gagal mereset data IndexedDB.');
@@ -183,12 +183,12 @@ export function BackupModal({
                 className="inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-red-600 transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>Kembalikan ke data contoh bawaan</span>
+                <span>Reset data ke pengaturan awal</span>
               </button>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-red-200 bg-red-50">
                 <span className="text-xs font-medium text-red-800">
-                  Data saat ini akan diganti dengan contoh awal. Lanjutkan?
+                  Seluruh aktivitas, riwayat ekspor, dan profil akan dihapus, lalu vendor dikembalikan ke template bawaan. Lanjutkan?
                 </span>
                 <div className="flex items-center gap-2">
                   <button

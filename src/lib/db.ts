@@ -5,11 +5,7 @@ import type {
   SavedExportReport,
   VendorProfile,
 } from '../types';
-import {
-  DEFAULT_PROFILE_NAME,
-  INITIAL_ACTIVITIES,
-  INITIAL_VENDOR_PROFILES,
-} from './seedData';
+import { INITIAL_ACTIVITIES, INITIAL_VENDOR_PROFILES } from './seedData';
 
 const DB_NAME = 'CatatKerjaIndexedDB';
 const DB_VERSION = 2;
@@ -138,7 +134,7 @@ export function sortSavedExportsDescending(items: SavedExportReport[]): SavedExp
   return [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const CURRENT_MIGRATION_VERSION = 5;
+const CURRENT_MIGRATION_VERSION = 6;
 
 const LEGACY_STARTER_VENDOR_NAMES = new Map<string, string>([
   ['vendor-nusantara', 'pt nusantara infrastruktur'],
@@ -299,7 +295,6 @@ function migrateLegacyVendors(vendors: VendorProfile[]): VendorProfile[] {
 }
 
 function migrateLegacyActivities(activities: ActivityEntry[]): ActivityEntry[] {
-  const seedById = new Map(INITIAL_ACTIVITIES.map((item) => [item.id, item]));
   const legacyStatuses = new Set(['selesai', 'proses', 'tertunda']);
 
   return activities.map((act) => {
@@ -308,103 +303,81 @@ function migrateLegacyActivities(activities: ActivityEntry[]): ActivityEntry[] {
       delete nextCustom.no_tiket;
     }
 
-    let nextProject = act.project;
-    let nextCategory = act.category;
-    let nextStatus = act.status;
-
     const normalizedStatus = (act.status ?? '').trim().toLowerCase();
-    if (legacyStatuses.has(normalizedStatus)) {
-      const seedMatch = seedById.get(act.id);
-      if (seedMatch) {
-        nextProject = seedMatch.project;
-        nextCategory = seedMatch.category;
-        nextStatus = seedMatch.status;
-      } else {
-        nextStatus = '';
-      }
-    }
+    const nextStatus = legacyStatuses.has(normalizedStatus) ? '' : act.status;
 
     return {
       ...act,
-      project: nextProject,
-      category: nextCategory,
       status: nextStatus,
       customValues: nextCustom,
     };
   });
 }
 
-function migrateLegacyDefaultProfile(
+const LEGACY_DUMMY_SEED_IDS = new Set([
+  'act-1',
+  'act-2',
+  'act-3',
+  'act-4',
+  'act-5',
+]);
+
+const LEGACY_DUMMY_SEED_PROJECTS = new Set([
+  'Pemeliharaan Gedung Graha',
+  'Core ERP Migrasi',
+  'Audit Perangkat Cikarang',
+  'Upgrade Fiber Gedung Graha',
+]);
+
+function migrateRemoveDummySeedV6(
   activities: ActivityEntry[],
   exportsList: SavedExportReport[],
   settings: AppSettings
 ): {
   activities: ActivityEntry[];
-  exportsList: SavedExportReport[];
   settings: AppSettings;
 } {
-  const seedIds = new Set(INITIAL_ACTIVITIES.map((item) => item.id));
-  const nextActivities = activities.map((act) => {
-    const picLower = (act.pic ?? '').trim().toLowerCase();
-    if (
-      picLower === 'raka pratama' ||
-      (seedIds.has(act.id) && picLower === 'dina kusuma')
-    ) {
-      return { ...act, pic: DEFAULT_PROFILE_NAME };
-    }
-    return act;
-  });
-
-  const nextExports = exportsList.map((exp) => {
-    const ownerLower = (exp.ownerAccount ?? '').trim().toLowerCase();
-    if (ownerLower === 'raka pratama') {
-      return { ...exp, ownerAccount: DEFAULT_PROFILE_NAME };
-    }
-    return exp;
-  });
-
-  const hasRemainingDina = nextActivities.some(
-    (act) => act.pic.trim().toLowerCase() === 'dina kusuma'
+  const nextActivities = activities.filter(
+    (act) =>
+      !(
+        LEGACY_DUMMY_SEED_IDS.has(act.id) &&
+        LEGACY_DUMMY_SEED_PROJECTS.has(act.project)
+      )
   );
 
-  const currentDefault = (settings.defaultPicName ?? '').trim();
-  const nextDefaultPicName =
-    !currentDefault || currentDefault.toLowerCase() === 'raka pratama'
-      ? DEFAULT_PROFILE_NAME
-      : currentDefault;
+  const taraHasActivities = nextActivities.some(
+    (act) => act.pic.trim().toLowerCase() === 'tara'
+  );
+  const taraHasExports = exportsList.some(
+    (exp) => exp.ownerAccount.trim().toLowerCase() === 'tara'
+  );
 
-  const dedupedProfiles: string[] = [];
-  const seen = new Set<string>();
-  const addProfile = (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const lower = trimmed.toLowerCase();
-    if (lower === 'raka pratama') {
-      addProfile(DEFAULT_PROFILE_NAME);
-      return;
-    }
-    if (lower === 'dina kusuma' && !hasRemainingDina) {
-      return;
-    }
-    if (!seen.has(lower)) {
-      seen.add(lower);
-      dedupedProfiles.push(trimmed);
-    }
-  };
+  if (!taraHasActivities && !taraHasExports) {
+    const nextProfiles = (settings.savedProfiles ?? []).filter(
+      (p) => p.trim().toLowerCase() !== 'tara'
+    );
+    const isTaraActive =
+      (settings.defaultPicName ?? '').trim().toLowerCase() === 'tara';
+    const nextDefault = isTaraActive
+      ? (nextProfiles[0] ?? '')
+      : settings.defaultPicName;
+    const nextLoggedIn =
+      isTaraActive && !nextDefault ? false : settings.isLoggedIn;
 
-  addProfile(nextDefaultPicName);
-  for (const p of settings.savedProfiles ?? []) {
-    addProfile(p);
+    return {
+      activities: nextActivities,
+      settings: {
+        ...settings,
+        defaultPicName: nextDefault,
+        savedProfiles: nextProfiles,
+        isLoggedIn: nextLoggedIn,
+      },
+    };
   }
 
   return {
     activities: nextActivities,
-    exportsList: nextExports,
-    settings: {
-      ...settings,
-      defaultPicName: nextDefaultPicName,
-      savedProfiles: dedupedProfiles,
-    },
+    settings,
   };
 }
 
@@ -427,15 +400,16 @@ export async function initializeAndLoadData(): Promise<{
   let savedExports = existingExports;
   let settings = existingSettings;
 
-  // Seed initial sample profiles and activities only on very first launch
+  // Seed default vendor templates only on very first launch; require user to enter username first
   if (!settings && vendors.length === 0 && activities.length === 0) {
     vendors = INITIAL_VENDOR_PROFILES;
     activities = INITIAL_ACTIVITIES;
     settings = {
       id: 'default',
       activeVendorId: INITIAL_VENDOR_PROFILES[0].id,
-      defaultPicName: DEFAULT_PROFILE_NAME,
-      savedProfiles: [DEFAULT_PROFILE_NAME],
+      defaultPicName: '',
+      savedProfiles: [],
+      isLoggedIn: false,
       migrationVersion: CURRENT_MIGRATION_VERSION,
     };
 
@@ -453,8 +427,9 @@ export async function initializeAndLoadData(): Promise<{
       settings = {
         id: 'default',
         activeVendorId: vendors[0]?.id ?? '',
-        defaultPicName: DEFAULT_PROFILE_NAME,
-        savedProfiles: [DEFAULT_PROFILE_NAME],
+        defaultPicName: '',
+        savedProfiles: [],
+        isLoggedIn: false,
       };
       await putInStore(STORE_SETTINGS, settings);
     }
@@ -465,16 +440,19 @@ export async function initializeAndLoadData(): Promise<{
         vendors = migrateLegacyVendors(vendors);
         activities = migrateLegacyActivities(activities);
       }
-      if (prevVersion < 4) {
-        const migrated = migrateLegacyDefaultProfile(activities, savedExports, settings);
-        activities = migrated.activities;
-        savedExports = migrated.exportsList;
-        settings = migrated.settings;
-      }
       if (prevVersion < 5) {
         const migratedVendors = migrateDefaultVendorsV5(vendors, settings);
         vendors = migratedVendors.vendors;
         settings = migratedVendors.settings;
+      }
+      if (prevVersion < 6) {
+        const cleaned = migrateRemoveDummySeedV6(
+          activities,
+          savedExports,
+          settings
+        );
+        activities = cleaned.activities;
+        settings = cleaned.settings;
       }
       settings = {
         ...settings,
@@ -593,8 +571,9 @@ export async function restoreFullBackup(payload: BackupPayload): Promise<{
   let settings: AppSettings = payload.settings ?? {
     id: 'default',
     activeVendorId: vendorProfiles[0].id,
-    defaultPicName: DEFAULT_PROFILE_NAME,
-    savedProfiles: [DEFAULT_PROFILE_NAME],
+    defaultPicName: '',
+    savedProfiles: [],
+    isLoggedIn: false,
   };
 
   if ((settings.migrationVersion ?? 0) < CURRENT_MIGRATION_VERSION) {
@@ -630,8 +609,9 @@ export async function resetToSampleData(): Promise<{
   const settings: AppSettings = {
     id: 'default',
     activeVendorId: INITIAL_VENDOR_PROFILES[0].id,
-    defaultPicName: DEFAULT_PROFILE_NAME,
-    savedProfiles: [DEFAULT_PROFILE_NAME],
+    defaultPicName: '',
+    savedProfiles: [],
+    isLoggedIn: false,
     migrationVersion: CURRENT_MIGRATION_VERSION,
   };
 

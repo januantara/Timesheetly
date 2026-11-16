@@ -39,7 +39,7 @@ import {
   type DigiHcParsedRecord,
 } from './lib/digihcImport';
 import { calculateDurationMinutes, filterActivities } from './lib/formatters';
-import { ASSET_PATHS, DEFAULT_PROFILE_NAME } from './lib/seedData';
+import { ASSET_PATHS } from './lib/seedData';
 import { buildLoopedSheetFromTemplate } from './lib/sheetTemplate';
 import type {
   ActivityEntry,
@@ -74,7 +74,8 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
     id: 'default',
     activeVendorId: '',
-    defaultPicName: DEFAULT_PROFILE_NAME,
+    defaultPicName: '',
+    isLoggedIn: false,
   });
 
   const [filter, setFilter] = useState<ActivityFilterState>({
@@ -276,7 +277,8 @@ export default function App() {
     [knownAccounts, activities]
   );
 
-  const isLoggedIn = settings.isLoggedIn !== false;
+  const isLoggedIn =
+    Boolean(settings.defaultPicName.trim()) && settings.isLoggedIn !== false;
 
   const activeVendor = useMemo(
     () => vendorProfiles.find((v) => v.id === settings.activeVendorId) ?? vendorProfiles[0],
@@ -596,7 +598,7 @@ export default function App() {
   const handleImportActivitiesBatch = async (
     entries: ActivityEntry[]
   ): Promise<boolean> => {
-    const activePic = settings.defaultPicName.trim() || DEFAULT_PROFILE_NAME;
+    const activePic = settings.defaultPicName.trim();
     const activePicLower = activePic.toLowerCase();
 
     // Deduplicate entries within the imported payload itself by date
@@ -719,7 +721,7 @@ export default function App() {
   };
 
   const handleApplyDigiHcRecords = async (records: DigiHcParsedRecord[]) => {
-    const activePic = settings.defaultPicName.trim() || DEFAULT_PROFILE_NAME;
+    const activePic = settings.defaultPicName.trim();
     const activePicLower = activePic.toLowerCase();
     const nowIso = new Date().toISOString();
 
@@ -1013,6 +1015,14 @@ export default function App() {
     isLoggedIn,
     settings.defaultPicName,
   ]);
+
+  if (loading && !loadError) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="w-full max-w-md h-64 rounded-2xl border border-slate-200 bg-white shadow-sm animate-pulse" />
+      </div>
+    );
+  }
 
   if (!loading && !loadError && !isLoggedIn) {
     return (
