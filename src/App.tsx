@@ -344,9 +344,7 @@ export default function App() {
       setShowSamplePreview: (show) => {
         setTourSamplePreview(show);
         if (show) {
-          setTourPreviewSelectedIds(
-            new Set(['tour-sample-1', 'tour-sample-2'])
-          );
+          setTourPreviewSelectedIds(new Set(['tour-sample-1']));
         } else {
           setTourPreviewSelectedIds(new Set());
         }
@@ -396,8 +394,17 @@ export default function App() {
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const date1 = `${y}-${m}-02`;
-    const date2 = `${y}-${m}-03`;
     const nowIso = now.toISOString();
+
+    const sampleActivityText = `Fixing Deffect UAT BNIMove SME Fase 4
+- Add scrollbar on FKS form and auto-scroll to top on next step (proses)
+- Sync selected debitur from apRegno path via verification API on Data Entry (proses)
+- Take out RT, RW, Provinsi, Kecamatan, and Kelurahan fields on alamat pemegang saham in DDV Address Legality (proses)
+- Fix business address POST payload to include kabupaten_kota key (proses)
+- Change SME auth API base URL to api-auth (shell)
+
+- Add console override function to disable browser logging for environment security (shell)
+- Merge branch master-uat-s4 into master-uat-s5 (shell)`;
 
     return [
       {
@@ -406,32 +413,11 @@ export default function App() {
         startTime: '08:00',
         endTime: '17:00',
         durationMinutes: 540,
-        project: 'Customer Service Portal',
-        category: 'PLN-2026',
-        activity:
-          '• Implemented new submission form validation\n• Fixed daily transaction status synchronization',
-        remark:
-          '• Implemented new submission form validation\n• Fixed daily transaction status synchronization',
-        status: 'Web Portal',
-        pic: picName,
-        attAbsenFlag: 'H',
-        customValues: {},
-        createdAt: nowIso,
-        updatedAt: nowIso,
-      },
-      {
-        id: 'tour-sample-2',
-        date: date2,
-        startTime: '08:15',
-        endTime: '17:10',
-        durationMinutes: 535,
-        project: 'Customer Service Portal',
-        category: 'PLN-2026',
-        activity:
-          '• Optimized monthly activity history query\n• Adjusted PDF report export formatting',
-        remark:
-          '• Optimized monthly activity history query\n• Adjusted PDF report export formatting',
-        status: 'Web Portal',
+        project: '',
+        category: '',
+        activity: sampleActivityText,
+        remark: sampleActivityText,
+        status: '',
         pic: picName,
         attAbsenFlag: 'H',
         customValues: {},
@@ -1660,10 +1646,6 @@ export default function App() {
             />
           )}
         </main>
-
-        <footer className="no-print relative z-0 px-4 sm:px-6 py-3.5 border-t border-slate-200/80 bg-white/70 text-center text-xs text-slate-500">
-          Copyright © {new Date().getFullYear()} by Januantara
-        </footer>
       </div>
 
       <ActivityModal

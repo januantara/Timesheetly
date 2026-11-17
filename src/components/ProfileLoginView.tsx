@@ -234,9 +234,6 @@ export function ProfileLoginView({
           </form>
         </div>
       </div>
-      <footer className="text-center text-xs text-slate-500">
-        Copyright © {new Date().getFullYear()} by Januantara
-      </footer>
     </div>
   );
 }
