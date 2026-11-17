@@ -32,9 +32,9 @@ export function startTemplateGenerationTour(
     {
       element: '[data-tour="copy-prompt"]',
       popover: {
-        title: '1. Copy Prompt Activity Recap',
+        title: '1. Copy Prompt',
         description:
-          'Mulai dengan klik button Copy Prompt, lalu jalankan prompt tersebut di root folder project dengan AI yang Anda miliki untuk mengekstrak commit message yang akan dijadikan sebagai activity dalam timesheet ke dalam format JSON.',
+          'Klik Copy Prompt, lalu jalankan prompt tersebut di root folder project menggunakan AI untuk mengubah commit message ke format JSON timesheet',
         side: 'bottom',
         align: 'end',
       },
@@ -42,9 +42,9 @@ export function startTemplateGenerationTour(
     {
       element: '[data-tour="import-btn"]',
       popover: {
-        title: '2. Buka Menu Impor',
+        title: '2. Klik button Import',
         description:
-          'Setelah prompt yang Anda jalankan menghasilkan output JSON, bukalah menu Impor untuk memasukkan aktivitas timesheet dari commit message yang pernah Anda push.',
+          'Setelah AI menghasilkan output JSON, klik button Import untuk untuk memasukkan daftar aktivitas dari *commit message anda*.',
         side: 'bottom',
         align: 'end',
         onNextClick: (_el, _step, opts) => {
@@ -59,9 +59,9 @@ export function startTemplateGenerationTour(
       element: '[data-tour="import-tab-json"]',
       waitForElement: 1200,
       popover: {
-        title: '3. Impor Aktivitas JSON',
+        title: '3. Import Aktivitas JSON',
         description:
-          'Tab ini berfungsi untuk mengimpor aktivitas timesheet secara otomatis dari commit message Anda.',
+          'Gunakan tab ini untuk meng-import aktivitas timesheet secara otomatis dari data JSON *commit message*.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
@@ -84,7 +84,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '4. Tab Check-In/Out DigiHC',
         description:
-          'Tab ini adalah tab untuk mengimpor jam mulai kerja dan pulang dari jam yang tercatat di DigiHC. Anda dapat mengimpornya dengan mengunggah file PDF yang didapatkan dari DigiHC atau mengimpornya dari JSON response yang didapatkan di DigiHC (males bat).',
+          'Import jam masuk dan pulang kerja dengan mengunggah file PDF DigiHC atau memasukkan *response* JSON dari sistem DigiHC.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
@@ -108,7 +108,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '5. Pilih Aktivitas',
         description:
-          'Setelah data aktivitas dan DigiHC masuk ke tabel, aktifkan toggle Pilih Semua di pojok kiri atas header tabel (atau pilih baris tertentu) untuk menandai aktivitas yang akan diekspor.',
+          'Aktifkan toggle "Pilih Semua" di pojok kiri atas tabel (atau pilih baris tertentu) untuk menandai aktivitas yang akan di export.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
@@ -123,9 +123,9 @@ export function startTemplateGenerationTour(
     {
       element: '[data-tour="export-btn"]',
       popover: {
-        title: '6. Klik Tombol Ekspor',
+        title: '6. Klik Button Export',
         description:
-          'Setelah aktivitas dipilih, klik tombol "Ekspor" untuk memilih template vendor dan men-generate file timesheet.',
+          'Setelah aktivitas dipilih, klik button "Export" untuk memilih template vendor PDF timesheet anda.',
         side: 'bottom',
         align: 'end',
         onNextClick: (_el, _step, opts) => {
@@ -142,7 +142,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '7. Pilih Template Vendor',
         description:
-          'Pilih template vendor yang sesuai (MII, SDD, atau NTT Data), lalu sesuaikan nama file laporan jika diperlukan. Anda juga bisa menambahkan template di menu Template Vendor bila vendor Anda belum ada di sini.',
+          'Pilih template vendor yang sesuai (MII, SDD, atau NTT Data) dan sesuaikan nama file laporan jika diperlukan. anda juga bisa menambahkan template baru pada menu vendor templates jika vendor ada belum ditambahkan.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
@@ -159,7 +159,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '8. Save as PDF',
         description:
-          'Terakhir, klik "Download PDF" untuk menyimpan laporan sebagai file PDF satu halaman (atau klik "Simpan" bila ingin mengedit sel terlebih dahulu di Pratinjau).',
+          'Klik "Download PDF" untuk menyimpan laporan dalam format PDF, atau klik "Simpan" untuk melakukan penyesuaian sel pada pratinjau.',
         side: 'top',
         align: 'end',
       },
