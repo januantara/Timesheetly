@@ -44,7 +44,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '2. Klik button Import',
         description:
-          'Setelah AI menghasilkan output JSON, klik button Import untuk untuk memasukkan daftar aktivitas dari *commit message anda*.',
+          'Setelah AI menghasilkan output JSON, klik button Import untuk untuk memasukkan daftar aktivitas dari <strong>commit message anda</strong>.',
         side: 'bottom',
         align: 'end',
         onNextClick: (_el, _step, opts) => {
@@ -61,7 +61,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '3. Import Aktivitas JSON',
         description:
-          'Gunakan tab ini untuk meng-import aktivitas timesheet secara otomatis dari data JSON *commit message*.',
+          'Gunakan tab ini untuk meng-import aktivitas timesheet secara otomatis dari data JSON <strong>commit message</strong>.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
@@ -84,7 +84,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '4. Tab Check-In/Out DigiHC',
         description:
-          'Import jam masuk dan pulang kerja dengan mengunggah file PDF DigiHC atau memasukkan *response* JSON dari sistem DigiHC.',
+          'Import jam masuk dan pulang kerja dengan mengunggah file PDF DigiHC atau memasukkan <strong>response</strong> JSON dari sistem DigiHC.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
