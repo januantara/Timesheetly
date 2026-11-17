@@ -344,7 +344,9 @@ export default function App() {
       setShowSamplePreview: (show) => {
         setTourSamplePreview(show);
         if (show) {
-          setTourPreviewSelectedIds(new Set(['tour-sample-1']));
+          setTourPreviewSelectedIds(
+            new Set(['tour-sample-1', 'tour-sample-2', 'tour-sample-3'])
+          );
         } else {
           setTourPreviewSelectedIds(new Set());
         }
@@ -394,16 +396,18 @@ export default function App() {
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     const date1 = `${y}-${m}-02`;
+    const date2 = `${y}-${m}-03`;
+    const date3 = `${y}-${m}-04`;
     const nowIso = now.toISOString();
 
-    const sampleActivityText = `Fixing Deffect UAT BNIMove SME Fase 4
+    const day1Activity = `Fixing Deffect UAT BNIMove SME Fase 4
 - Add scrollbar on FKS form and auto-scroll to top on next step (proses)
-- Sync selected debitur from apRegno path via verification API on Data Entry (proses)
-- Take out RT, RW, Provinsi, Kecamatan, and Kelurahan fields on alamat pemegang saham in DDV Address Legality (proses)
-- Fix business address POST payload to include kabupaten_kota key (proses)
-- Change SME auth API base URL to api-auth (shell)
+- Sync selected debitur from apRegno path via verification API on Data Entry (proses)`;
 
-- Add console override function to disable browser logging for environment security (shell)
+    const day2Activity = `- Fix business address POST payload to include kabupaten_kota key (proses)
+- Change SME auth API base URL to api-auth (shell)`;
+
+    const day3Activity = `- Add console override function to disable browser logging for environment security (shell)
 - Merge branch master-uat-s4 into master-uat-s5 (shell)`;
 
     return [
@@ -413,10 +417,44 @@ export default function App() {
         startTime: '08:00',
         endTime: '17:00',
         durationMinutes: 540,
-        project: '',
-        category: '',
-        activity: sampleActivityText,
-        remark: sampleActivityText,
+        project: 'BNIMove SME Fase 4',
+        category: 'BNI-SME-F4',
+        activity: day1Activity,
+        remark: day1Activity,
+        status: '',
+        pic: picName,
+        attAbsenFlag: 'H',
+        customValues: {},
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      },
+      {
+        id: 'tour-sample-2',
+        date: date2,
+        startTime: '08:15',
+        endTime: '17:10',
+        durationMinutes: 535,
+        project: 'BNIMove SME Fase 4',
+        category: 'BNI-SME-F4',
+        activity: day2Activity,
+        remark: day2Activity,
+        status: '',
+        pic: picName,
+        attAbsenFlag: 'H',
+        customValues: {},
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      },
+      {
+        id: 'tour-sample-3',
+        date: date3,
+        startTime: '08:05',
+        endTime: '17:05',
+        durationMinutes: 540,
+        project: 'BNIMove SME Fase 4',
+        category: 'BNI-SME-F4',
+        activity: day3Activity,
+        remark: day3Activity,
         status: '',
         pic: picName,
         attAbsenFlag: 'H',
