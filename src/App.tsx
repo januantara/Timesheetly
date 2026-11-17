@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, HelpCircle, LogOut, Menu, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Globe, HelpCircle, LogOut, Menu, Trash2 } from 'lucide-react';
 import type { Driver } from 'driver.js';
 import { ActivitiesView } from './components/ActivitiesView';
 import { ActivityModal } from './components/ActivityModal';
@@ -40,7 +40,12 @@ import {
   type DigiHcParsedRecord,
 } from './lib/digihcImport';
 import { calculateDurationMinutes, filterActivities } from './lib/formatters';
-import { ASSET_PATHS } from './lib/seedData';
+import {
+  getStoredLanguage,
+  LanguageProvider,
+  syncActiveLanguage,
+} from './lib/i18n';
+import { ASSET_PATHS, getDefaultActiveVendorId } from './lib/seedData';
 import {
   startTemplateGenerationTour,
   TOUR_STORAGE_KEY,
@@ -49,6 +54,7 @@ import { buildLoopedSheetFromTemplate } from './lib/sheetTemplate';
 import type {
   ActivityEntry,
   ActivityFilterState,
+  AppLanguage,
   AppSettings,
   AppView,
   BackupPayload,
@@ -76,12 +82,13 @@ export default function App() {
   const [vendorProfiles, setVendorProfiles] = useState<VendorProfile[]>([]);
   const [savedExports, setSavedExports] = useState<SavedExportReport[]>([]);
   const [activeExportId, setActiveExportId] = useState<string>('');
-  const [settings, setSettings] = useState<AppSettings>({
+  const [settings, setSettings] = useState<AppSettings>(() => ({
     id: 'default',
     activeVendorId: '',
     defaultPicName: '',
     isLoggedIn: false,
-  });
+    language: getStoredLanguage(),
+  }));
 
   const [filter, setFilter] = useState<ActivityFilterState>({
     search: '',
@@ -95,6 +102,10 @@ export default function App() {
   const [editingEntry, setEditingEntry] = useState<ActivityEntry | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importModalTab, setImportModalTab] = useState<'json' | 'digihc'>('json');
+  const [tourSamplePreview, setTourSamplePreview] = useState(false);
+  const [tourPreviewSelectedIds, setTourPreviewSelectedIds] = useState<Set<string>>(
+    new Set()
+  );
   const [pendingSingleMerge, setPendingSingleMerge] = useState<{
     existing: ActivityEntry;
     incoming: ActivityEntry;
@@ -127,15 +138,32 @@ export default function App() {
     }, 4000);
   };
 
+  const activeLang: AppLanguage = settings.language ?? getStoredLanguage();
+  const t = useCallback(
+    (en: string, id: string) => (activeLang === 'id' ? id : en),
+    [activeLang]
+  );
+
+  const handleChangeLanguage = useCallback(async (nextLang: AppLanguage) => {
+    syncActiveLanguage(nextLang);
+    setSettings((prev) => {
+      const updated: AppSettings = { ...prev, language: nextLang };
+      void saveSettings(updated);
+      return updated;
+    });
+  }, []);
+
   useEffect(() => {
     let active = true;
     initializeAndLoadData()
       .then((data) => {
         if (!active) return;
+        const resolvedLang = data.settings.language ?? getStoredLanguage();
+        syncActiveLanguage(resolvedLang);
         setActivities(data.activities);
         setVendorProfiles(data.vendorProfiles);
         setSavedExports(data.savedExports);
-        setSettings(data.settings);
+        setSettings({ ...data.settings, language: resolvedLang });
         setLoading(false);
       })
       .catch((err) => {
@@ -143,7 +171,10 @@ export default function App() {
         setLoadError(
           err instanceof Error
             ? err.message
-            : 'Gagal membuka database IndexedDB pada browser.'
+            : t(
+                'Failed to open the browser IndexedDB database.',
+                'Gagal membuka database IndexedDB browser.'
+              )
         );
         setLoading(false);
       });
@@ -310,6 +341,16 @@ export default function App() {
       closeImportModal: () => setImportModalOpen(false),
       openExportModal: () => setExportModalOpen(true),
       closeExportModal: () => setExportModalOpen(false),
+      setShowSamplePreview: (show) => {
+        setTourSamplePreview(show);
+        if (show) {
+          setTourPreviewSelectedIds(
+            new Set(['tour-sample-1', 'tour-sample-2'])
+          );
+        } else {
+          setTourPreviewSelectedIds(new Set());
+        }
+      },
     });
   }, []);
 
@@ -340,10 +381,68 @@ export default function App() {
     };
   }, []);
 
-  const activeVendor = useMemo(
-    () => vendorProfiles.find((v) => v.id === settings.activeVendorId) ?? vendorProfiles[0],
-    [vendorProfiles, settings.activeVendorId]
-  );
+  const activeVendor = useMemo(() => {
+    const fallbackId = getDefaultActiveVendorId(vendorProfiles);
+    return (
+      vendorProfiles.find((v) => v.id === settings.activeVendorId) ??
+      vendorProfiles.find((v) => v.id === fallbackId) ??
+      vendorProfiles[0]
+    );
+  }, [vendorProfiles, settings.activeVendorId]);
+
+  const tourSampleActivities = useMemo<ActivityEntry[]>(() => {
+    const picName = settings.defaultPicName.trim() || 'User';
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const date1 = `${y}-${m}-02`;
+    const date2 = `${y}-${m}-03`;
+    const nowIso = now.toISOString();
+
+    return [
+      {
+        id: 'tour-sample-1',
+        date: date1,
+        startTime: '08:00',
+        endTime: '17:00',
+        durationMinutes: 540,
+        project: 'Customer Service Portal',
+        category: 'PLN-2026',
+        activity:
+          '• Implemented new submission form validation\n• Fixed daily transaction status synchronization',
+        remark:
+          '• Implemented new submission form validation\n• Fixed daily transaction status synchronization',
+        status: 'Web Portal',
+        pic: picName,
+        attAbsenFlag: 'H',
+        customValues: {},
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      },
+      {
+        id: 'tour-sample-2',
+        date: date2,
+        startTime: '08:15',
+        endTime: '17:10',
+        durationMinutes: 535,
+        project: 'Customer Service Portal',
+        category: 'PLN-2026',
+        activity:
+          '• Optimized monthly activity history query\n• Adjusted PDF report export formatting',
+        remark:
+          '• Optimized monthly activity history query\n• Adjusted PDF report export formatting',
+        status: 'Web Portal',
+        pic: picName,
+        attAbsenFlag: 'H',
+        customValues: {},
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      },
+    ];
+  }, [settings.defaultPicName]);
+
+  const isShowingTourPreview =
+    tourSamplePreview && filteredActivities.length === 0;
 
   const handleSelectDefaultVendor = async (vendorId: string) => {
     const nextSettings: AppSettings = { ...settings, activeVendorId: vendorId };
@@ -362,7 +461,13 @@ export default function App() {
     };
     setSettings(nextSettings);
     await saveSettings(nextSettings);
-    showNotify('success', `Format diperbarui (${next.dateFormat.toUpperCase()} · ${next.timeFormat}).`);
+    showNotify(
+      'success',
+      t(
+        `Format updated (${next.dateFormat.toUpperCase()} · ${next.timeFormat}).`,
+        `Format diperbarui (${next.dateFormat.toUpperCase()} · ${next.timeFormat}).`
+      )
+    );
   };
 
   const savedCustomKeys = settings.savedCustomKeys ?? [];
@@ -374,7 +479,10 @@ export default function App() {
       (k) => k.trim().toLowerCase() === trimmed.toLowerCase()
     );
     if (exists) {
-      showNotify('success', `Key "${trimmed}" sudah tersimpan.`);
+      showNotify(
+        'success',
+        t(`Key "${trimmed}" is already saved.`, `Key "${trimmed}" sudah tersimpan.`)
+      );
       return;
     }
     const nextKeys = [...savedCustomKeys, trimmed];
@@ -384,7 +492,13 @@ export default function App() {
     };
     setSettings(nextSettings);
     await saveSettings(nextSettings);
-    showNotify('success', `Key "${trimmed}" disimpan untuk tambah activity berikutnya.`);
+    showNotify(
+      'success',
+      t(
+        `Key "${trimmed}" saved for future activities.`,
+        `Key "${trimmed}" disimpan untuk aktivitas berikutnya.`
+      )
+    );
   };
 
   const handleRemoveCustomKey = async (rawKey: string) => {
@@ -398,7 +512,13 @@ export default function App() {
     };
     setSettings(nextSettings);
     await saveSettings(nextSettings);
-    showNotify('success', `Key "${rawKey}" dihapus dari daftar tersimpan.`);
+    showNotify(
+      'success',
+      t(
+        `Key "${rawKey}" removed from saved keys.`,
+        `Key "${rawKey}" dihapus dari daftar tersimpan.`
+      )
+    );
   };
 
   const handleSwitchAccount = async (nextName: string) => {
@@ -420,7 +540,10 @@ export default function App() {
     setActiveExportId('');
     setAccountMenuOpen(false);
     await saveSettings(nextSettings);
-    showNotify('success', `Masuk ke profil ${trimmed}.`);
+    showNotify(
+      'success',
+      t(`Signed in to profile ${trimmed}.`, `Masuk ke profil ${trimmed}.`)
+    );
   };
 
   const handleLogout = async () => {
@@ -446,7 +569,13 @@ export default function App() {
     setBackupModalOpen(false);
     setCurrentView('activities');
     await saveSettings(nextSettings);
-    showNotify('success', `Berhasil logout dari profil ${currentName || 'aktif'}.`);
+    showNotify(
+      'success',
+      t(
+        `Signed out from profile ${currentName || 'active'}.`,
+        `Keluar dari profil ${currentName || 'aktif'}.`
+      )
+    );
   };
 
   const handleRequestDeleteAccount = (accountName: string) => {
@@ -512,11 +641,16 @@ export default function App() {
       }
 
       setDeleteTargetAccount(null);
-      showNotify('success', `Akun "${targetName}" berhasil dihapus.`);
+      showNotify(
+        'success',
+        t(`Account "${targetName}" deleted.`, `Akun "${targetName}" dihapus.`)
+      );
     } catch (err) {
       showNotify(
         'error',
-        err instanceof Error ? err.message : 'Gagal menghapus akun.'
+        err instanceof Error
+          ? err.message
+          : t('Failed to delete account.', 'Gagal menghapus akun.')
       );
     } finally {
       setIsDeletingAccount(false);
@@ -579,8 +713,8 @@ export default function App() {
       showNotify(
         'success',
         upserted.isHoliday && !upserted.activity.trim()
-          ? 'Hari libur disimpan.'
-          : 'Aktivitas timesheet disimpan (upsert) ke tanggal tersebut.'
+          ? t('Holiday saved.', 'Hari libur disimpan.')
+          : t('Timesheet activity saved to this date.', 'Aktivitas timesheet disimpan ke tanggal ini.')
       );
       return true;
     }
@@ -601,8 +735,8 @@ export default function App() {
     showNotify(
       'success',
       ownedEntry.isHoliday && !ownedEntry.activity.trim()
-        ? 'Hari libur disimpan.'
-        : 'Aktivitas timesheet disimpan ke IndexedDB.'
+        ? t('Holiday saved.', 'Hari libur disimpan.')
+        : t('Timesheet activity saved.', 'Aktivitas timesheet disimpan.')
     );
     return true;
   };
@@ -645,11 +779,20 @@ export default function App() {
       showNotify(
         'success',
         mode === 'merge'
-          ? `Aktivitas tanggal ${existing.date} berhasil di-merge.`
-          : `Aktivitas tanggal ${existing.date} berhasil diperbarui.`
+          ? t(
+              `Activity for ${existing.date} merged successfully.`,
+              `Aktivitas tanggal ${existing.date} berhasil digabung.`
+            )
+          : t(
+              `Activity for ${existing.date} updated successfully.`,
+              `Aktivitas tanggal ${existing.date} berhasil diperbarui.`
+            )
       );
     } catch {
-      showNotify('error', 'Gagal menyimpan perubahan aktivitas.');
+      showNotify(
+        'error',
+        t('Failed to save activity changes.', 'Gagal menyimpan perubahan aktivitas.')
+      );
     } finally {
       setMergeBusy(false);
     }
@@ -715,7 +858,10 @@ export default function App() {
     }
     showNotify(
       'success',
-      `${toPersist.length} aktivitas berhasil disimpan ke IndexedDB.`
+      t(
+        `${toPersist.length} activities saved successfully.`,
+        `${toPersist.length} aktivitas berhasil disimpan.`
+      )
     );
     return true;
   };
@@ -770,11 +916,17 @@ export default function App() {
       showNotify(
         'success',
         toPersist.length > 0
-          ? `${toPersist.length} aktivitas berhasil disimpan (upsert).`
-          : 'Tidak ada aktivitas baru yang ditambahkan.'
+          ? t(
+              `${toPersist.length} activities saved (upserted).`,
+              `${toPersist.length} aktivitas berhasil disimpan.`
+            )
+          : t('No new activities were added.', 'Tidak ada aktivitas baru yang ditambahkan.')
       );
     } catch {
-      showNotify('error', 'Gagal menyimpan hasil impor aktivitas.');
+      showNotify(
+        'error',
+        t('Failed to save imported activities.', 'Gagal menyimpan aktivitas yang diimpor.')
+      );
     } finally {
       setMergeBusy(false);
     }
@@ -859,7 +1011,10 @@ export default function App() {
     const workTotal = records.length - holidayTotal;
     showNotify(
       'success',
-      `Data DigiHC diterapkan: ${workTotal} hari kerja dan ${holidayTotal} hari libur (LIB).`
+      t(
+        `DigiHC data applied: ${workTotal} workdays and ${holidayTotal} holidays (LIB).`,
+        `Data DigiHC diterapkan: ${workTotal} hari kerja dan ${holidayTotal} hari libur (LIB).`
+      )
     );
   };
 
@@ -884,7 +1039,10 @@ export default function App() {
     setPromptCopied(true);
     showNotify(
       'success',
-      'Prompt disalin! Jalankan di root folder project lalu klik Impor untuk memasukkan hasilnya.'
+      t(
+        'Prompt copied! Run it in your project root folder, then click Import to paste the JSON output.',
+        'Prompt disalin! Jalankan di root folder proyek Anda, lalu klik Impor untuk menempelkan hasil JSON.'
+      )
     );
     setTimeout(() => setPromptCopied(false), 2200);
   };
@@ -897,7 +1055,7 @@ export default function App() {
       next.delete(id);
       return next;
     });
-    showNotify('success', 'Aktivitas timesheet dihapus.');
+    showNotify('success', t('Timesheet activity deleted.', 'Aktivitas timesheet dihapus.'));
   };
 
   const handleDeleteSelected = async () => {
@@ -906,7 +1064,13 @@ export default function App() {
     await deleteActivitiesBatch(ids);
     setActivities((prev) => prev.filter((item) => !selectedIds.has(item.id)));
     setSelectedIds(new Set());
-    showNotify('success', `${ids.length} aktivitas timesheet dihapus.`);
+    showNotify(
+      'success',
+      t(
+        `${ids.length} timesheet activities deleted.`,
+        `${ids.length} aktivitas timesheet dihapus.`
+      )
+    );
   };
 
   const handleToggleSelect = (id: string) => {
@@ -950,10 +1114,10 @@ export default function App() {
     await deleteVendorProfile(id);
     const remaining = vendorProfiles.filter((v) => v.id !== id);
     setVendorProfiles(remaining);
-    if (settings.activeVendorId === id && remaining[0]) {
-      await handleSelectDefaultVendor(remaining[0].id);
+    if (settings.activeVendorId === id && remaining.length > 0) {
+      await handleSelectDefaultVendor(getDefaultActiveVendorId(remaining));
     }
-    showNotify('success', 'Profil vendor dihapus.');
+    showNotify('success', t('Vendor profile deleted.', 'Profil vendor dihapus.'));
   };
 
   const handleConfirmCreateExport = async ({
@@ -1003,7 +1167,13 @@ export default function App() {
 
     setExportModalOpen(false);
     setCurrentView('export');
-    showNotify('success', `Ekspor "${newReport.title}" disimpan ke Pratinjau.`);
+    showNotify(
+      'success',
+      t(
+        `Export "${newReport.title}" saved to Preview.`,
+        `Ekspor "${newReport.title}" disimpan ke Pratinjau.`
+      )
+    );
   };
 
   const handleSaveEditedExport = async (updated: SavedExportReport) => {
@@ -1021,33 +1191,37 @@ export default function App() {
     if (activeExportId === id) {
       setActiveExportId('');
     }
-    showNotify('success', 'Riwayat hasil ekspor dihapus.');
+    showNotify('success', t('Saved export history deleted.', 'Riwayat ekspor dihapus.'));
   };
 
   const handleRestoreBackup = async (payload: BackupPayload) => {
     const data = await restoreFullBackup(payload);
+    const resolvedLang = data.settings.language ?? activeLang;
+    syncActiveLanguage(resolvedLang);
     setActivities(data.activities);
     setVendorProfiles(data.vendorProfiles);
     setSavedExports(data.savedExports);
-    setSettings(data.settings);
+    setSettings({ ...data.settings, language: resolvedLang });
     setSelectedIds(new Set());
     setActiveExportId('');
   };
 
   const handleResetSample = async () => {
     const data = await resetToSampleData();
+    const resolvedLang = data.settings.language ?? activeLang;
+    syncActiveLanguage(resolvedLang);
     setActivities(data.activities);
     setVendorProfiles(data.vendorProfiles);
     setSavedExports(data.savedExports);
-    setSettings(data.settings);
+    setSettings({ ...data.settings, language: resolvedLang });
     setSelectedIds(new Set());
     setActiveExportId('');
   };
 
   const viewTitleMap: Record<AppView, string> = {
-    activities: 'Timesheet',
-    vendors: 'Profil Template Vendor',
-    export: 'Pratinjau & Ekspor Laporan',
+    activities: t('Timesheet', 'Timesheet'),
+    vendors: t('Vendor Templates', 'Template Vendor'),
+    export: t('Preview & Export Reports', 'Pratinjau & Ekspor Laporan'),
   };
 
   const activitiesForExportModal = activitiesForExport;
@@ -1076,16 +1250,12 @@ export default function App() {
     settings.defaultPicName,
   ]);
 
-  if (loading && !loadError) {
-    return (
+  const content =
+    loading && !loadError ? (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="w-full max-w-md h-64 rounded-2xl border border-slate-200 bg-white shadow-sm animate-pulse" />
       </div>
-    );
-  }
-
-  if (!loading && !loadError && !isLoggedIn) {
-    return (
+    ) : !loading && !loadError && !isLoggedIn ? (
       <>
         <ProfileLoginView
           accounts={knownAccountSummaries}
@@ -1107,10 +1277,7 @@ export default function App() {
         />
         <Toast toast={toast} onDismiss={() => setToast(null)} />
       </>
-    );
-  }
-
-  return (
+    ) : (
     <div className="min-h-screen flex bg-slate-50 text-slate-900">
       <Sidebar
         currentView={currentView}
@@ -1139,7 +1306,7 @@ export default function App() {
               type="button"
               onClick={() => setMobileNavOpen(true)}
               className="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-slate-100"
-              aria-label="Buka menu navigasi"
+              aria-label={t('Open navigation menu', 'Buka menu navigasi')}
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -1148,18 +1315,8 @@ export default function App() {
             </h1>
           </div>
 
-          {/* Right Header Actions: Panduan Tour + Account Profile Switcher */}
+          {/* Right Header Actions: Account Profile Switcher */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleStartTemplateTour}
-              title="Panduan langkah generate template laporan"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
-            >
-              <HelpCircle className="h-3.5 w-3.5 text-blue-600" />
-              <span>Panduan</span>
-            </button>
-
             <div className="relative shrink-0" ref={accountMenuRef}>
             <button
               type="button"
@@ -1189,7 +1346,7 @@ export default function App() {
                   {settings.defaultPicName}
                 </div>
                 <div className="text-[10px] text-slate-500 leading-tight">
-                  Akun Pribadi
+                  {t('Personal Account', 'Akun Pribadi')}
                 </div>
               </div>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -1199,7 +1356,7 @@ export default function App() {
               <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border border-slate-200 bg-white shadow-xl p-3.5 space-y-3">
                 <div className="pb-2.5 border-b border-slate-100">
                   <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
-                    Profil Akun Aktif
+                    {t('Active Account Profile', 'Profil Akun Aktif')}
                   </div>
                   <div className="mt-1 flex items-center gap-2.5">
                     {!profileAvatarError ? (
@@ -1220,7 +1377,10 @@ export default function App() {
                         {settings.defaultPicName}
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {ownActivities.length} aktivitas tersimpan
+                        {t(
+                          `${ownActivities.length} saved activities`,
+                          `${ownActivities.length} aktivitas tersimpan`
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1228,7 +1388,7 @@ export default function App() {
 
                 <div>
                   <div className="text-[11px] font-medium text-slate-500 mb-1.5">
-                    Pilih Akun
+                    {t('Select Account', 'Pilih Akun')}
                   </div>
                   <div className="space-y-1 max-h-36 overflow-y-auto">
                     {knownAccounts.map((acc) => {
@@ -1267,8 +1427,8 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => handleRequestDeleteAccount(acc)}
-                            title={`Hapus akun ${acc}`}
-                            aria-label={`Hapus akun ${acc}`}
+                            title={t(`Delete account ${acc}`, `Hapus akun ${acc}`)}
+                            aria-label={t(`Delete account ${acc}`, `Hapus akun ${acc}`)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1287,24 +1447,75 @@ export default function App() {
                   className="pt-2.5 border-t border-slate-100 space-y-1.5"
                 >
                   <label className="block text-[11px] font-medium text-slate-500">
-                    Masuk / Buat Akun Lain
+                    {t('Sign In / Create Another Account', 'Masuk / Buat Akun Lain')}
                   </label>
                   <div className="flex gap-1.5">
                     <input
                       type="text"
                       value={accountDraft}
                       onChange={(e) => setAccountDraft(e.target.value)}
-                      placeholder="Nama akun..."
+                      placeholder={t('Account name...', 'Nama akun...')}
                       className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
                     />
                     <button
                       type="submit"
                       className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 whitespace-nowrap"
                     >
-                      Masuk
+                      {t('Sign In', 'Masuk')}
                     </button>
                   </div>
                 </form>
+
+                {/* Language Switch & Template Guide */}
+                <div className="pt-2.5 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                      <Globe className="h-3.5 w-3.5 text-slate-400" />
+                      <span>{t('Language', 'Bahasa')}</span>
+                    </span>
+                    <div
+                      className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5"
+                      role="group"
+                      aria-label={t('Switch language', 'Ganti bahasa')}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleChangeLanguage('en')}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
+                          activeLang === 'en'
+                            ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        EN
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeLanguage('id')}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
+                          activeLang === 'id'
+                            ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        ID
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleStartTemplateTour}
+                    title={t(
+                      'Step-by-step guide to generate a report template',
+                      'Panduan langkah demi langkah membuat template laporan'
+                    )}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors"
+                  >
+                    <HelpCircle className="h-3.5 w-3.5 text-blue-600" />
+                    <span>{t('Template Generation Guide', 'Panduan Buat Template')}</span>
+                  </button>
+                </div>
 
                 <div className="pt-2 border-t border-slate-100">
                   <button
@@ -1313,7 +1524,7 @@ export default function App() {
                     className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                   >
                     <LogOut className="h-3.5 w-3.5" />
-                    <span>Logout</span>
+                    <span>{t('Logout', 'Keluar')}</span>
                   </button>
                 </div>
               </div>
@@ -1333,7 +1544,7 @@ export default function App() {
           ) : loadError ? (
             <div className="rounded-xl border border-red-200 bg-white p-8 text-center max-w-lg mx-auto mt-12">
               <h2 className="font-display text-base font-semibold text-red-700">
-                Gagal Membuka Database Lokal
+                {t('Failed to Open Local Database', 'Gagal Membuka Database Lokal')}
               </h2>
               <p className="mt-2 text-sm text-slate-600">{loadError}</p>
               <button
@@ -1341,32 +1552,80 @@ export default function App() {
                 onClick={() => window.location.reload()}
                 className="mt-4 px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium"
               >
-                Muat Ulang Halaman
+                {t('Reload Page', 'Muat Ulang Halaman')}
               </button>
             </div>
           ) : currentView === 'activities' ? (
             <ActivitiesView
               ownActivitiesCount={visibleOwnActivitiesCount}
-              exportableCount={exportFilteredActivities.length}
-              selectedExportCount={activitiesForExport.length}
-              filteredActivities={filteredActivities}
+              exportableCount={
+                isShowingTourPreview
+                  ? tourSampleActivities.length
+                  : exportFilteredActivities.length
+              }
+              selectedExportCount={
+                isShowingTourPreview
+                  ? tourPreviewSelectedIds.size
+                  : activitiesForExport.length
+              }
+              filteredActivities={
+                isShowingTourPreview ? tourSampleActivities : filteredActivities
+              }
               filter={filter}
               onFilterChange={setFilter}
               activeAccountName={settings.defaultPicName}
-              selectedIds={selectedIds}
-              onToggleSelect={handleToggleSelect}
-              onToggleSelectAllFiltered={handleToggleSelectAllFiltered}
-              onClearSelection={() => setSelectedIds(new Set())}
+              selectedIds={isShowingTourPreview ? tourPreviewSelectedIds : selectedIds}
+              onToggleSelect={(id) => {
+                if (isShowingTourPreview) {
+                  setTourPreviewSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id);
+                    else next.add(id);
+                    return next;
+                  });
+                  return;
+                }
+                handleToggleSelect(id);
+              }}
+              onToggleSelectAllFiltered={() => {
+                if (isShowingTourPreview) {
+                  const allChecked = tourSampleActivities.every((item) =>
+                    tourPreviewSelectedIds.has(item.id)
+                  );
+                  setTourPreviewSelectedIds(
+                    allChecked
+                      ? new Set()
+                      : new Set(tourSampleActivities.map((item) => item.id))
+                  );
+                  return;
+                }
+                handleToggleSelectAllFiltered();
+              }}
+              onClearSelection={() => {
+                if (isShowingTourPreview) {
+                  setTourPreviewSelectedIds(new Set());
+                  return;
+                }
+                setSelectedIds(new Set());
+              }}
               onAddNew={() => {
+                if (isShowingTourPreview) return;
                 setEditingEntry(null);
                 setActivityModalOpen(true);
               }}
               onEdit={(entry) => {
+                if (isShowingTourPreview) return;
                 setEditingEntry(entry);
                 setActivityModalOpen(true);
               }}
-              onDelete={handleDeleteActivity}
-              onDeleteSelected={handleDeleteSelected}
+              onDelete={async (id) => {
+                if (isShowingTourPreview) return;
+                await handleDeleteActivity(id);
+              }}
+              onDeleteSelected={async () => {
+                if (isShowingTourPreview) return;
+                await handleDeleteSelected();
+              }}
               onOpenExportModal={() => setExportModalOpen(true)}
               onCopyPrompt={handleCopyExtractionPrompt}
               promptCopied={promptCopied}
@@ -1377,6 +1636,7 @@ export default function App() {
               dateFormat={activeDateFormat}
               timeFormat={activeTimeFormat}
               onChangeFormats={handleUpdateDisplayFormats}
+              isTourPreview={isShowingTourPreview}
             />
           ) : currentView === 'vendors' ? (
             <VendorTemplatesView
@@ -1481,7 +1741,9 @@ export default function App() {
         open={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
         vendorProfiles={vendorProfiles}
-        defaultVendorId={settings.activeVendorId || vendorProfiles[0]?.id || ''}
+        defaultVendorId={
+          settings.activeVendorId || getDefaultActiveVendorId(vendorProfiles)
+        }
         activitiesToExport={activitiesForExportModal}
         activeAccountName={settings.defaultPicName}
         dateFormat={activeDateFormat}
@@ -1518,5 +1780,11 @@ export default function App() {
 
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
+  );
+
+  return (
+    <LanguageProvider lang={activeLang} onChangeLang={handleChangeLanguage}>
+      {content}
+    </LanguageProvider>
   );
 }

@@ -5,7 +5,12 @@ import type {
   SavedExportReport,
   VendorProfile,
 } from '../types';
-import { INITIAL_ACTIVITIES, INITIAL_VENDOR_PROFILES } from './seedData';
+import { getActiveLanguage, pickLang } from './i18n';
+import {
+  getDefaultActiveVendorId,
+  INITIAL_ACTIVITIES,
+  INITIAL_VENDOR_PROFILES,
+} from './seedData';
 
 const DB_NAME = 'CatatKerjaIndexedDB';
 const DB_VERSION = 2;
@@ -57,7 +62,16 @@ function openDatabase(): Promise<IDBDatabase> {
     };
 
     request.onerror = () => {
-      reject(request.error ?? new Error('Gagal membuka database IndexedDB.'));
+      reject(
+        request.error ??
+          new Error(
+            pickLang(
+              getActiveLanguage(),
+              'Failed to open IndexedDB database.',
+              'Gagal membuka database IndexedDB.'
+            )
+          )
+      );
     };
   });
 }
@@ -70,7 +84,17 @@ function getAllFromStore<T>(storeName: string): Promise<T[]> {
         const store = tx.objectStore(storeName);
         const req = store.getAll();
         req.onsuccess = () => resolve((req.result as T[]) ?? []);
-        req.onerror = () => reject(req.error ?? new Error(`Gagal membaca store ${storeName}.`));
+        req.onerror = () =>
+          reject(
+            req.error ??
+              new Error(
+                pickLang(
+                  getActiveLanguage(),
+                  `Failed to read store ${storeName}.`,
+                  `Gagal membaca data ${storeName}.`
+                )
+              )
+          );
       })
   );
 }
@@ -83,7 +107,17 @@ function putInStore<T>(storeName: string, value: T): Promise<void> {
         const store = tx.objectStore(storeName);
         store.put(value);
         tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error ?? new Error(`Gagal menyimpan ke store ${storeName}.`));
+        tx.onerror = () =>
+          reject(
+            tx.error ??
+              new Error(
+                pickLang(
+                  getActiveLanguage(),
+                  `Failed to save to store ${storeName}.`,
+                  `Gagal menyimpan ke ${storeName}.`
+                )
+              )
+          );
       })
   );
 }
@@ -96,7 +130,17 @@ function deleteFromStore(storeName: string, key: string): Promise<void> {
         const store = tx.objectStore(storeName);
         store.delete(key);
         tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error ?? new Error(`Gagal menghapus dari store ${storeName}.`));
+        tx.onerror = () =>
+          reject(
+            tx.error ??
+              new Error(
+                pickLang(
+                  getActiveLanguage(),
+                  `Failed to delete from store ${storeName}.`,
+                  `Gagal menghapus dari ${storeName}.`
+                )
+              )
+          );
       })
   );
 }
@@ -109,7 +153,17 @@ function getFromStore<T>(storeName: string, key: string): Promise<T | undefined>
         const store = tx.objectStore(storeName);
         const req = store.get(key);
         req.onsuccess = () => resolve(req.result as T | undefined);
-        req.onerror = () => reject(req.error ?? new Error(`Gagal mengambil data ${key}.`));
+        req.onerror = () =>
+          reject(
+            req.error ??
+              new Error(
+                pickLang(
+                  getActiveLanguage(),
+                  `Failed to fetch record ${key}.`,
+                  `Gagal mengambil data ${key}.`
+                )
+              )
+          );
       })
   );
 }
@@ -125,7 +179,17 @@ function clearAndSeedStore<T>(storeName: string, items: T[]): Promise<void> {
           store.put(item);
         }
         tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error ?? new Error(`Gagal mengisi ulang store ${storeName}.`));
+        tx.onerror = () =>
+          reject(
+            tx.error ??
+              new Error(
+                pickLang(
+                  getActiveLanguage(),
+                  `Failed to re-seed store ${storeName}.`,
+                  `Gagal memperbarui data awal ${storeName}.`
+                )
+              )
+          );
       })
   );
 }
@@ -134,7 +198,7 @@ export function sortSavedExportsDescending(items: SavedExportReport[]): SavedExp
   return [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const CURRENT_MIGRATION_VERSION = 7;
+const CURRENT_MIGRATION_VERSION = 8;
 
 const LEGACY_STARTER_VENDOR_NAMES = new Map<string, string>([
   ['vendor-nusantara', 'pt nusantara infrastruktur'],
@@ -169,7 +233,7 @@ function migrateDefaultVendorsV5(
   const hasActive = nextVendors.some((v) => v.id === settings.activeVendorId);
   const nextSettings: AppSettings = hasActive
     ? settings
-    : { ...settings, activeVendorId: nextVendors[0]?.id ?? '' };
+    : { ...settings, activeVendorId: getDefaultActiveVendorId(nextVendors) };
 
   return { vendors: nextVendors, settings: nextSettings };
 }
@@ -394,7 +458,7 @@ function migrateDefaultVendorsV7(
   const hasActive = nextVendors.some((v) => v.id === settings.activeVendorId);
   const nextSettings: AppSettings = hasActive
     ? settings
-    : { ...settings, activeVendorId: nextVendors[0]?.id ?? '' };
+    : { ...settings, activeVendorId: getDefaultActiveVendorId(nextVendors) };
 
   return { vendors: nextVendors, settings: nextSettings };
 }
@@ -424,7 +488,7 @@ export async function initializeAndLoadData(): Promise<{
     activities = INITIAL_ACTIVITIES;
     settings = {
       id: 'default',
-      activeVendorId: INITIAL_VENDOR_PROFILES[0].id,
+      activeVendorId: getDefaultActiveVendorId(vendors),
       defaultPicName: '',
       savedProfiles: [],
       isLoggedIn: false,
@@ -444,7 +508,7 @@ export async function initializeAndLoadData(): Promise<{
     if (!settings) {
       settings = {
         id: 'default',
-        activeVendorId: vendors[0]?.id ?? '',
+        activeVendorId: getDefaultActiveVendorId(vendors),
         defaultPicName: '',
         savedProfiles: [],
         isLoggedIn: false,
@@ -476,6 +540,21 @@ export async function initializeAndLoadData(): Promise<{
         const updatedVendors = migrateDefaultVendorsV7(vendors, settings);
         vendors = updatedVendors.vendors;
         settings = updatedVendors.settings;
+      }
+      if (prevVersion < 8) {
+        const preferredVendorId = getDefaultActiveVendorId(vendors);
+        const currentActiveId = settings.activeVendorId;
+        if (
+          preferredVendorId &&
+          (!currentActiveId ||
+            currentActiveId === 'vendor-1794799030334-0-ttf4' ||
+            !vendors.some((v) => v.id === currentActiveId))
+        ) {
+          settings = {
+            ...settings,
+            activeVendorId: preferredVendorId,
+          };
+        }
       }
       settings = {
         ...settings,
@@ -522,7 +601,17 @@ export async function saveActivitiesBatch(entries: ActivityEntry[]): Promise<voi
       store.put(entry);
     }
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error('Gagal menyimpan batch aktivitas.'));
+    tx.onerror = () =>
+      reject(
+        tx.error ??
+          new Error(
+            pickLang(
+              getActiveLanguage(),
+              'Failed to save activity batch.',
+              'Gagal menyimpan daftar aktivitas.'
+            )
+          )
+      );
   });
 }
 
@@ -540,7 +629,17 @@ export async function deleteActivitiesBatch(ids: string[]): Promise<void> {
       store.delete(id);
     }
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error('Gagal menghapus aktivitas terpilih.'));
+    tx.onerror = () =>
+      reject(
+        tx.error ??
+          new Error(
+            pickLang(
+              getActiveLanguage(),
+              'Failed to delete selected activities.',
+              'Gagal menghapus aktivitas terpilih.'
+            )
+          )
+      );
   });
 }
 
@@ -570,7 +669,17 @@ export async function deleteSavedExportsBatch(ids: string[]): Promise<void> {
       store.delete(id);
     }
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error('Gagal menghapus riwayat ekspor terpilih.'));
+    tx.onerror = () =>
+      reject(
+        tx.error ??
+          new Error(
+            pickLang(
+              getActiveLanguage(),
+              'Failed to delete selected export history.',
+              'Gagal menghapus riwayat ekspor terpilih.'
+            )
+          )
+      );
   });
 }
 
@@ -593,7 +702,7 @@ export async function restoreFullBackup(payload: BackupPayload): Promise<{
 
   let settings: AppSettings = payload.settings ?? {
     id: 'default',
-    activeVendorId: vendorProfiles[0].id,
+    activeVendorId: getDefaultActiveVendorId(vendorProfiles),
     defaultPicName: '',
     savedProfiles: [],
     isLoggedIn: false,
@@ -631,7 +740,7 @@ export async function resetToSampleData(): Promise<{
 }> {
   const settings: AppSettings = {
     id: 'default',
-    activeVendorId: INITIAL_VENDOR_PROFILES[0].id,
+    activeVendorId: getDefaultActiveVendorId(INITIAL_VENDOR_PROFILES),
     defaultPicName: '',
     savedProfiles: [],
     isLoggedIn: false,

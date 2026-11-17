@@ -27,8 +27,9 @@ import {
   formatDurationHHMM,
   formatTimeByPattern,
   formatTimeRangeByPattern,
-  getIndonesianDayName,
+  getDayNameByLanguage,
 } from '../lib/formatters';
+import { useLanguage } from '../lib/i18n';
 import type {
   ActivityEntry,
   ActivityFilterState,
@@ -67,6 +68,7 @@ export function ImportActivitiesModal({
   onApplyDigiHc,
   onNotify,
 }: ImportActivitiesModalProps) {
+  const { lang, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<ImportMode>('json');
 
   useEffect(() => {
@@ -122,13 +124,16 @@ export function ImportActivitiesModal({
     } catch (err) {
       return {
         ok: false as const,
-        error: err instanceof Error ? err.message : 'Gagal membaca format JSON.',
+        error:
+          err instanceof Error
+            ? err.message
+            : t('Failed to parse JSON format.', 'Gagal membaca format JSON.'),
         entries: [] as ActivityEntry[],
         warnings: [] as string[],
         skippedCount: 0,
       };
     }
-  }, [rawInput, activeAccountName]);
+  }, [rawInput, activeAccountName, t]);
 
   const parsedDigiHcPreview = useMemo(() => {
     if (pdfResult) {
@@ -177,7 +182,10 @@ export function ImportActivitiesModal({
         error:
           err instanceof Error
             ? err.message
-            : 'Gagal membaca respons JSON DigiHC.',
+            : t(
+                'Failed to parse DigiHC JSON response.',
+                'Gagal membaca respons JSON DigiHC.'
+              ),
         source: 'json' as const,
         records: [] as DigiHcParsedRecord[],
         warnings: [] as string[],
@@ -186,7 +194,7 @@ export function ImportActivitiesModal({
         workDayCount: 0,
       };
     }
-  }, [digiHcRawInput, pdfResult, pdfError]);
+  }, [digiHcRawInput, pdfResult, pdfError, t]);
 
   if (!open) return null;
 
@@ -215,7 +223,13 @@ export function ImportActivitiesModal({
       document.body.removeChild(ta);
     }
     setPromptCopied(true);
-    onNotify('success', 'Prompt ekstraksi folder project disalin ke clipboard.');
+    onNotify(
+      'success',
+      t(
+        'Project extraction prompt copied to clipboard.',
+        'Prompt ekstraksi proyek disalin ke clipboard.'
+      )
+    );
     setTimeout(() => setPromptCopied(false), 2000);
   };
 
@@ -226,7 +240,10 @@ export function ImportActivitiesModal({
       const text = await file.text();
       setRawInput(text);
     } catch {
-      onNotify('error', 'Gagal membaca file yang dipilih.');
+      onNotify(
+        'error',
+        t('Failed to read the selected file.', 'Gagal membaca file yang dipilih.')
+      );
     } finally {
       if (jsonFileInputRef.current) jsonFileInputRef.current.value = '';
     }
@@ -252,7 +269,7 @@ export function ImportActivitiesModal({
         setPdfError(
           err instanceof Error
             ? err.message
-            : 'Gagal memparsing file PDF DigiHC.'
+            : t('Failed to parse DigiHC PDF file.', 'Gagal membaca file PDF DigiHC.')
         );
       } finally {
         setPdfParsing(false);
@@ -266,7 +283,10 @@ export function ImportActivitiesModal({
       const text = await file.text();
       setDigiHcRawInput(text);
     } catch {
-      onNotify('error', 'Gagal membaca file yang dipilih.');
+      onNotify(
+        'error',
+        t('Failed to read the selected file.', 'Gagal membaca file yang dipilih.')
+      );
     } finally {
       if (digiHcFileInputRef.current) digiHcFileInputRef.current.value = '';
     }
@@ -282,7 +302,10 @@ export function ImportActivitiesModal({
         onClose();
       }
     } catch {
-      onNotify('error', 'Gagal menyimpan aktivitas impor ke IndexedDB.');
+      onNotify(
+        'error',
+        t('Failed to save imported activities.', 'Gagal menyimpan aktivitas yang diimpor.')
+      );
     } finally {
       setImporting(false);
     }
@@ -303,7 +326,10 @@ export function ImportActivitiesModal({
       clearPdfState();
       onClose();
     } catch {
-      onNotify('error', 'Gagal menerapkan data absensi DigiHC ke IndexedDB.');
+      onNotify(
+        'error',
+        t('Failed to apply DigiHC attendance data.', 'Gagal menerapkan data absensi DigiHC.')
+      );
     } finally {
       setApplyingDigiHc(false);
     }
@@ -324,17 +350,20 @@ export function ImportActivitiesModal({
                 id="import-activities-title"
                 className="font-display text-base font-semibold text-slate-900"
               >
-                Impor Data Timesheet
+                {t('Import Timesheet Data', 'Impor Data Timesheet')}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Impor aktivitas kerja (JSON) atau data Check-In &amp; Check-Out dari DigiHC (PDF / JSON)
+                {t(
+                  'Import work activities (JSON) or Check-In & Check-Out attendance from DigiHC (PDF / JSON)',
+                  'Impor aktivitas kerja (JSON) atau absensi Check-In & Check-Out dari DigiHC (PDF / JSON)'
+                )}
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
               className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              aria-label="Tutup"
+              aria-label={t('Close', 'Tutup')}
             >
               <X className="h-4 w-4" />
             </button>
@@ -353,7 +382,7 @@ export function ImportActivitiesModal({
               }`}
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span>Aktivitas (JSON)</span>
+              <span>{t('Activities (JSON)', 'Aktivitas (JSON)')}</span>
             </button>
             <button
               type="button"
@@ -366,7 +395,7 @@ export function ImportActivitiesModal({
               }`}
             >
               <Clock className="h-3.5 w-3.5" />
-              <span>Check-In/Out DigiHC</span>
+              <span>{t('DigiHC Check-In/Out', 'Check-In/Out DigiHC')}</span>
             </button>
           </div>
         </div>
@@ -377,7 +406,10 @@ export function ImportActivitiesModal({
               {/* Prompt helper bar */}
               <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs text-blue-900 leading-relaxed max-w-lg">
-                  Jalankan prompt di root folder project Anda, lalu tempelkan seluruh output JSON-nya ke kolom di bawah ini.
+                  {t(
+                    'Run the prompt in your project root folder, then paste the entire JSON output into the field below.',
+                    'Jalankan prompt di root folder proyek Anda, lalu tempelkan seluruh output JSON ke kolom di bawah.'
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
@@ -390,7 +422,11 @@ export function ImportActivitiesModal({
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
-                    <span>{promptCopied ? 'Prompt Disalin' : 'Copy Prompt'}</span>
+                    <span>
+                      {promptCopied
+                        ? t('Prompt Copied', 'Prompt Disalin')
+                        : t('Copy Prompt', 'Salin Prompt')}
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -398,7 +434,7 @@ export function ImportActivitiesModal({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
                   >
                     <FileUp className="h-3.5 w-3.5 text-slate-500" />
-                    <span>Pilih File JSON</span>
+                    <span>{t('Choose JSON File', 'Pilih File JSON')}</span>
                   </button>
                   <input
                     ref={jsonFileInputRef}
@@ -417,7 +453,7 @@ export function ImportActivitiesModal({
                     htmlFor="import-json-textarea"
                     className="block text-xs font-semibold text-slate-700"
                   >
-                    Output JSON Prompt
+                    {t('JSON Prompt Output', 'Output JSON Prompt')}
                   </label>
                   {rawInput.trim() && (
                     <button
@@ -425,7 +461,7 @@ export function ImportActivitiesModal({
                       onClick={() => setRawInput('')}
                       className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
                     >
-                      Bersihkan
+                      {t('Clear', 'Bersihkan')}
                     </button>
                   )}
                 </div>
@@ -434,7 +470,10 @@ export function ImportActivitiesModal({
                   rows={7}
                   value={rawInput}
                   onChange={(e) => setRawInput(e.target.value)}
-                  placeholder={`Tempel output JSON dari prompt di sini...\n{\n  "activities": [\n    {\n      "date": "2026-11-15",\n      "activity": "• Mengerjakan fitur X"\n    }\n  ]\n}`}
+                  placeholder={t(
+                    `Paste the JSON output from the prompt here...\n{\n  "activities": [\n    {\n      "date": "2026-11-15",\n      "activity": "• Implemented feature X"\n    }\n  ]\n}`,
+                    `Tempelkan hasil JSON dari prompt di sini...\n{\n  "activities": [\n    {\n      "date": "2026-11-15",\n      "activity": "• Implementasi fitur X"\n    }\n  ]\n}`
+                  )}
                   className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50/50 font-mono text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                 />
               </div>
@@ -449,7 +488,10 @@ export function ImportActivitiesModal({
               {parsedJsonPreview.ok && parsedJsonPreview.warnings.length > 0 && (
                 <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-800 space-y-1">
                   <div className="font-semibold">
-                    {parsedJsonPreview.skippedCount} baris dilewati karena tidak lengkap:
+                    {t(
+                      `${parsedJsonPreview.skippedCount} rows skipped due to incomplete data:`,
+                      `${parsedJsonPreview.skippedCount} baris dilewati karena data tidak lengkap:`
+                    )}
                   </div>
                   <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
                     {parsedJsonPreview.warnings.slice(0, 4).map((w, i) => (
@@ -463,21 +505,35 @@ export function ImportActivitiesModal({
                 <div className="rounded-lg border border-slate-200 overflow-hidden">
                   <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-800">
-                      Pratinjau Data Siap Impor ({parsedJsonPreview.entries.length} aktivitas)
+                      {t(
+                        `Import Preview (${parsedJsonPreview.entries.length} activities)`,
+                        `Pratinjau Impor (${parsedJsonPreview.entries.length} aktivitas)`
+                      )}
                     </span>
                     <span className="text-[11px] text-slate-500">
-                      Masuk ke akun: <span className="font-medium text-slate-700">{activeAccountName}</span>
+                      {t('Target account:', 'Akun tujuan:')}{' '}
+                      <span className="font-medium text-slate-700">{activeAccountName}</span>
                     </span>
                   </div>
                   <div className="max-h-56 overflow-y-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-600 sticky top-0">
                         <tr>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Tanggal</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Hari</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Jam</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Durasi</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Project &amp; Activity</th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Date', 'Tanggal')}
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Day', 'Hari')}
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Time', 'Jam')}
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Duration', 'Durasi')}
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Project & Activity', 'Proyek & Aktivitas')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -487,7 +543,7 @@ export function ImportActivitiesModal({
                               {formatDateByPattern(item.date, dateFormat)}
                             </td>
                             <td className="py-2 px-3 align-top whitespace-nowrap text-slate-600">
-                              {getIndonesianDayName(item.date)}
+                              {getDayNameByLanguage(item.date, lang)}
                             </td>
                             <td className="py-2 px-3 align-top font-mono tabular-nums whitespace-nowrap text-slate-600">
                               {item.startTime || item.endTime
@@ -511,7 +567,7 @@ export function ImportActivitiesModal({
                               </div>
                               {item.status && (
                                 <div className="text-[11px] text-slate-500 mt-0.5">
-                                  Aplikasi Berdampak: {item.status}
+                                  {t('Affected Apps:', 'Aplikasi Terdampak:')} {item.status}
                                 </div>
                               )}
                             </td>
@@ -528,7 +584,10 @@ export function ImportActivitiesModal({
               {/* DigiHC Upload Bar (no holiday explanation text) */}
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs text-slate-600 leading-relaxed max-w-xl">
-                  Unggah file PDF Laporan Kehadiran DigiHC atau pilih file JSON absensi. Jam check-in &amp; check-out akan otomatis di-upsert ke tanggal terkait.
+                  {t(
+                    'Upload a DigiHC Attendance Report PDF or select an attendance JSON file. Check-in & check-out hours will be automatically upserted to the matching dates.',
+                    'Unggah PDF Laporan Absensi DigiHC atau pilih file JSON absensi. Jam masuk & pulang akan otomatis diperbarui ke tanggal yang sesuai.'
+                  )}
                 </div>
 
                 <div className="shrink-0">
@@ -539,7 +598,11 @@ export function ImportActivitiesModal({
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-blue-200 bg-white text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors whitespace-nowrap disabled:opacity-50"
                   >
                     <FileUp className="h-3.5 w-3.5" />
-                    <span>{pdfParsing ? 'Membaca PDF...' : 'Pilih File PDF / JSON'}</span>
+                    <span>
+                      {pdfParsing
+                        ? t('Reading PDF...', 'Membaca PDF...')
+                        : t('Choose PDF / JSON File', 'Pilih File PDF / JSON')}
+                    </span>
                   </button>
                   <input
                     ref={digiHcFileInputRef}
@@ -561,10 +624,13 @@ export function ImportActivitiesModal({
                       </div>
                       <div className="text-[11px] text-slate-600">
                         {pdfParsing
-                          ? 'Sedang memparsing isi tabel PDF DigiHC...'
+                          ? t('Parsing DigiHC PDF table contents...', 'Membaca isi tabel PDF DigiHC...')
                           : pdfResult
-                          ? `${pdfResult.pageCount ?? 1} halaman · ${pdfResult.records.length} baris kehadiran berhasil diparsing`
-                          : 'Gagal membaca isi PDF'}
+                          ? t(
+                              `${pdfResult.pageCount ?? 1} pages · ${pdfResult.records.length} attendance rows parsed`,
+                              `${pdfResult.pageCount ?? 1} halaman · ${pdfResult.records.length} baris absensi terbaca`
+                            )
+                          : t('Failed to read PDF contents', 'Gagal membaca isi PDF')}
                       </div>
                     </div>
                   </div>
@@ -572,8 +638,8 @@ export function ImportActivitiesModal({
                     type="button"
                     onClick={clearPdfState}
                     className="p-1.5 rounded-md text-slate-500 hover:text-red-600 hover:bg-white transition-colors shrink-0"
-                    title="Hapus file PDF"
-                    aria-label="Hapus file PDF"
+                    title={t('Remove PDF file', 'Hapus file PDF')}
+                    aria-label={t('Remove PDF file', 'Hapus file PDF')}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -586,7 +652,7 @@ export function ImportActivitiesModal({
                     htmlFor="digihc-json-textarea"
                     className="block text-xs font-semibold text-slate-700"
                   >
-                    Atau Tempel Response JSON DigiHC
+                    {t('Or Paste DigiHC JSON Response', 'Atau Tempel Respons JSON DigiHC')}
                   </label>
                   {digiHcRawInput.trim() && (
                     <button
@@ -594,7 +660,7 @@ export function ImportActivitiesModal({
                       onClick={() => setDigiHcRawInput('')}
                       className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
                     >
-                      Bersihkan
+                      {t('Clear', 'Bersihkan')}
                     </button>
                   )}
                 </div>
@@ -608,7 +674,10 @@ export function ImportActivitiesModal({
                     }
                     setDigiHcRawInput(e.target.value);
                   }}
-                  placeholder={`Pilih file PDF Laporan Kehadiran DigiHC di atas, atau tempel JSON di sini...\n[\n  {\n    "attAbsenFlag": "H",\n    "periodeHari": "09-11-2026",\n    "jamCheckIn": "07:49:25",\n    "jamCheckOut": "21:25:49"\n  }\n]`}
+                  placeholder={t(
+                    `Choose a DigiHC Attendance Report PDF above, or paste JSON here...\n[\n  {\n    "attAbsenFlag": "H",\n    "periodeHari": "09-11-2026",\n    "jamCheckIn": "07:49:25",\n    "jamCheckOut": "21:25:49"\n  }\n]`,
+                    `Pilih PDF Laporan Absensi DigiHC di atas, atau tempel JSON di sini...\n[\n  {\n    "attAbsenFlag": "H",\n    "periodeHari": "09-11-2026",\n    "jamCheckIn": "07:49:25",\n    "jamCheckOut": "21:25:49"\n  }\n]`
+                  )}
                   className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50/50 font-mono text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                 />
               </div>
@@ -625,7 +694,10 @@ export function ImportActivitiesModal({
               {parsedDigiHcPreview.ok && parsedDigiHcPreview.warnings.length > 0 && (
                 <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-800 space-y-1">
                   <div className="font-semibold">
-                    {parsedDigiHcPreview.skippedCount} baris dilewati:
+                    {t(
+                      `${parsedDigiHcPreview.skippedCount} rows skipped:`,
+                      `${parsedDigiHcPreview.skippedCount} baris dilewati:`
+                    )}
                   </div>
                   <ul className="list-disc pl-4 space-y-0.5 text-[11px]">
                     {parsedDigiHcPreview.warnings.slice(0, 4).map((w, i) => (
@@ -639,11 +711,14 @@ export function ImportActivitiesModal({
                 <div className="rounded-lg border border-slate-200 overflow-hidden">
                   <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="font-semibold text-slate-800">
-                      Pratinjau Absensi DigiHC ({parsedDigiHcPreview.records.length} hari:{' '}
-                      {parsedDigiHcPreview.workDayCount} masuk, {parsedDigiHcPreview.holidayCount} libur)
+                      {t(
+                        `DigiHC Attendance Preview (${parsedDigiHcPreview.records.length} days: ${parsedDigiHcPreview.workDayCount} working, ${parsedDigiHcPreview.holidayCount} holiday)`,
+                        `Pratinjau Absensi DigiHC (${parsedDigiHcPreview.records.length} hari: ${parsedDigiHcPreview.workDayCount} masuk, ${parsedDigiHcPreview.holidayCount} libur)`
+                      )}
                     </span>
                     <span className="text-[11px] text-slate-500">
-                      Akun: <span className="font-medium text-slate-700">{activeAccountName}</span>
+                      {t('Account:', 'Akun:')}{' '}
+                      <span className="font-medium text-slate-700">{activeAccountName}</span>
                     </span>
                   </div>
 
@@ -651,13 +726,27 @@ export function ImportActivitiesModal({
                     <table className="w-full text-left border-collapse text-xs">
                       <thead className="bg-slate-50/90 border-b border-slate-200 text-slate-600 sticky top-0">
                         <tr>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Tanggal</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Hari</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Flag</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Check-In</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Check-Out</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Durasi</th>
-                          <th className="py-2 px-3 font-semibold whitespace-nowrap">Keterangan</th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Date', 'Tanggal')}
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Day', 'Hari')}
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            Flag
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            Check-In
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            Check-Out
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Duration', 'Durasi')}
+                          </th>
+                          <th className="py-2 px-3 font-semibold whitespace-nowrap">
+                            {t('Notes', 'Catatan')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
@@ -666,13 +755,13 @@ export function ImportActivitiesModal({
                           const hasExistingActivity = Boolean(existing?.activity.trim());
                           const rowBg = rec.isHoliday ? HOLIDAY_ROW_COLOR : undefined;
 
-                          let statusNote = 'Hari baru';
+                          let statusNote = t('New day', 'Hari baru');
                           if (rec.isHoliday) {
                             statusNote = hasExistingActivity
-                              ? 'Libur + aktivitas'
-                              : 'Hari libur (LIB)';
+                              ? t('Holiday + activity', 'Libur + aktivitas')
+                              : t('Holiday (LIB)', 'Libur (LIB)');
                           } else if (existing) {
-                            statusNote = 'Upsert jam kerja';
+                            statusNote = t('Upsert work hours', 'Perbarui jam kerja');
                           }
 
                           return (
@@ -685,7 +774,7 @@ export function ImportActivitiesModal({
                                 {formatDateByPattern(rec.date, dateFormat)}
                               </td>
                               <td className="py-2 px-3 whitespace-nowrap text-slate-800">
-                                {getIndonesianDayName(rec.date)}
+                                {getDayNameByLanguage(rec.date, lang)}
                               </td>
                               <td className="py-2 px-3 whitespace-nowrap">
                                 <span
@@ -707,8 +796,11 @@ export function ImportActivitiesModal({
                                 {rec.endTime
                                   ? formatTimeByPattern(rec.endTime, timeFormat)
                                   : existing?.endTime
-                                  ? `${formatTimeByPattern(existing.endTime, timeFormat)} (tetap)`
-                                  : 'Belum Check-Out'}
+                                  ? `${formatTimeByPattern(existing.endTime, timeFormat)} (${t(
+                                      'kept',
+                                      'dipertahankan'
+                                    )})`
+                                  : t('Not Checked Out', 'Belum Check-Out')}
                               </td>
                               <td className="py-2 px-3 font-mono tabular-nums whitespace-nowrap text-slate-900">
                                 {rec.startTime && rec.endTime
@@ -736,7 +828,7 @@ export function ImportActivitiesModal({
             onClick={onClose}
             className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
           >
-            Batal
+            {t('Cancel', 'Batal')}
           </button>
 
           {activeTab === 'json' ? (
@@ -753,10 +845,13 @@ export function ImportActivitiesModal({
               <Upload className="h-4 w-4" />
               <span>
                 {importing
-                  ? 'Mengimpor...'
+                  ? t('Importing...', 'Mengimpor...')
                   : parsedJsonPreview.ok && parsedJsonPreview.entries.length > 0
-                  ? `Impor ${parsedJsonPreview.entries.length} Aktivitas`
-                  : 'Impor Aktivitas'}
+                  ? t(
+                      `Import ${parsedJsonPreview.entries.length} Activities`,
+                      `Impor ${parsedJsonPreview.entries.length} Aktivitas`
+                    )
+                  : t('Import Activities', 'Impor Aktivitas')}
               </span>
             </button>
           ) : (
@@ -774,10 +869,13 @@ export function ImportActivitiesModal({
               <Upload className="h-4 w-4" />
               <span>
                 {applyingDigiHc
-                  ? 'Menyimpan...'
+                  ? t('Saving...', 'Menyimpan...')
                   : parsedDigiHcPreview.ok && parsedDigiHcPreview.records.length > 0
-                  ? `Terapkan (${parsedDigiHcPreview.records.length} Hari)`
-                  : 'Terapkan Check-In/Out'}
+                  ? t(
+                      `Apply (${parsedDigiHcPreview.records.length} Days)`,
+                      `Terapkan (${parsedDigiHcPreview.records.length} Hari)`
+                    )
+                  : t('Apply Check-In/Out', 'Terapkan Check-In/Out')}
               </span>
             </button>
           )}

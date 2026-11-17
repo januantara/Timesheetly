@@ -37,50 +37,51 @@ export interface SheetRenderMeta {
 export interface DynamicTagOption {
   token: string;
   label: string;
+  labelId: string;
   group: 'activity' | 'document';
 }
 
 export const ACTIVITY_DATA_TAGS: DynamicTagOption[] = [
-  { token: '{{no}}', label: 'No.', group: 'activity' },
-  { token: '{{tanggal}}', label: 'Tanggal', group: 'activity' },
-  { token: '{{hari}}', label: 'Hari', group: 'activity' },
-  { token: '{{jam}}', label: 'Jam', group: 'activity' },
-  { token: '{{jam_mulai}}', label: 'Jam Mulai', group: 'activity' },
-  { token: '{{jam_selesai}}', label: 'Jam Selesai', group: 'activity' },
-  { token: '{{durasi}}', label: 'Durasi', group: 'activity' },
-  { token: '{{activity}}', label: 'Activity', group: 'activity' },
-  { token: '{{remark}}', label: 'Remark', group: 'activity' },
-  { token: '{{project_name}}', label: 'Project Name', group: 'activity' },
-  { token: '{{project_code}}', label: 'Project Code', group: 'activity' },
-  { token: '{{aplikasi_berdampak}}', label: 'Aplikasi Berdampak', group: 'activity' },
-  { token: '{{pic}}', label: 'Akun / PIC', group: 'activity' },
-  { token: '{{jika_ada_activity:P}}', label: 'Hadir (P)', group: 'activity' },
+  { token: '{{no}}', label: 'No.', labelId: 'No.', group: 'activity' },
+  { token: '{{tanggal}}', label: 'Date', labelId: 'Tanggal', group: 'activity' },
+  { token: '{{hari}}', label: 'Day', labelId: 'Hari', group: 'activity' },
+  { token: '{{jam}}', label: 'Time', labelId: 'Jam', group: 'activity' },
+  { token: '{{jam_mulai}}', label: 'Start Time', labelId: 'Jam Mulai', group: 'activity' },
+  { token: '{{jam_selesai}}', label: 'End Time', labelId: 'Jam Selesai', group: 'activity' },
+  { token: '{{durasi}}', label: 'Duration', labelId: 'Durasi', group: 'activity' },
+  { token: '{{activity}}', label: 'Activity', labelId: 'Aktivitas', group: 'activity' },
+  { token: '{{remark}}', label: 'Remark', labelId: 'Catatan / Remark', group: 'activity' },
+  { token: '{{project_name}}', label: 'Project Name', labelId: 'Nama Proyek', group: 'activity' },
+  { token: '{{project_code}}', label: 'Project Code', labelId: 'Kode Proyek', group: 'activity' },
+  { token: '{{aplikasi_berdampak}}', label: 'Affected Apps', labelId: 'Aplikasi Berdampak', group: 'activity' },
+  { token: '{{pic}}', label: 'Account / PIC', labelId: 'Akun / PIC', group: 'activity' },
+  { token: '{{jika_ada_activity:P}}', label: 'Present (P)', labelId: 'Hadir (P)', group: 'activity' },
 ];
 
-export const CONDITIONAL_KEY_OPTIONS: { key: string; label: string }[] = [
-  { key: 'jika_ada_activity', label: 'Jika ada Activity' },
-  { key: 'jika_ada_jam', label: 'Jika ada Jam Kerja' },
-  { key: 'jika_ada_jam_mulai', label: 'Jika ada Jam Mulai' },
-  { key: 'jika_ada_jam_selesai', label: 'Jika ada Jam Selesai' },
-  { key: 'jika_ada_durasi', label: 'Jika ada Durasi' },
-  { key: 'jika_ada_remark', label: 'Jika ada Remark' },
-  { key: 'jika_ada_project_name', label: 'Jika ada Project Name' },
-  { key: 'jika_ada_project_code', label: 'Jika ada Project Code' },
-  { key: 'jika_ada_aplikasi_berdampak', label: 'Jika ada Aplikasi Berdampak' },
-  { key: 'jika_ada_pic', label: 'Jika ada Akun / PIC' },
-  { key: 'jika_libur', label: 'Jika Hari Libur' },
-  { key: 'jika_bukan_libur', label: 'Jika Bukan Hari Libur' },
-  { key: 'jika_tidak_ada_activity', label: 'Jika Tidak Ada Activity' },
+export const CONDITIONAL_KEY_OPTIONS: { key: string; label: string; labelId: string }[] = [
+  { key: 'jika_ada_activity', label: 'If Activity Exists', labelId: 'Jika Ada Aktivitas' },
+  { key: 'jika_ada_jam', label: 'If Work Hours Exist', labelId: 'Jika Ada Jam Kerja' },
+  { key: 'jika_ada_jam_mulai', label: 'If Start Time Exists', labelId: 'Jika Ada Jam Mulai' },
+  { key: 'jika_ada_jam_selesai', label: 'If End Time Exists', labelId: 'Jika Ada Jam Selesai' },
+  { key: 'jika_ada_durasi', label: 'If Duration Exists', labelId: 'Jika Ada Durasi' },
+  { key: 'jika_ada_remark', label: 'If Remark Exists', labelId: 'Jika Ada Catatan' },
+  { key: 'jika_ada_project_name', label: 'If Project Name Exists', labelId: 'Jika Ada Nama Proyek' },
+  { key: 'jika_ada_project_code', label: 'If Project Code Exists', labelId: 'Jika Ada Kode Proyek' },
+  { key: 'jika_ada_aplikasi_berdampak', label: 'If Affected Apps Exist', labelId: 'Jika Ada Aplikasi Berdampak' },
+  { key: 'jika_ada_pic', label: 'If Account / PIC Exists', labelId: 'Jika Ada Akun / PIC' },
+  { key: 'jika_libur', label: 'If Holiday', labelId: 'Jika Hari Libur' },
+  { key: 'jika_bukan_libur', label: 'If Workday', labelId: 'Jika Hari Kerja' },
+  { key: 'jika_tidak_ada_activity', label: 'If No Activity', labelId: 'Jika Tidak Ada Aktivitas' },
 ];
 
 export const DOCUMENT_META_TAGS: DynamicTagOption[] = [
-  { token: '{{vendor}}', label: 'Nama Vendor', group: 'document' },
-  { token: '{{periode}}', label: 'Periode', group: 'document' },
-  { token: '{{tanggal_cetak}}', label: 'Tanggal Cetak', group: 'document' },
-  { token: '{{penyusun}}', label: 'Nama Penyusun', group: 'document' },
-  { token: '{{penyetuju}}', label: 'Nama Penyetuju', group: 'document' },
-  { token: '{{total_baris}}', label: 'Total Baris', group: 'document' },
-  { token: '{{total_jam}}', label: 'Total Jam', group: 'document' },
+  { token: '{{vendor}}', label: 'Vendor Name', labelId: 'Nama Vendor', group: 'document' },
+  { token: '{{periode}}', label: 'Period', labelId: 'Periode', group: 'document' },
+  { token: '{{tanggal_cetak}}', label: 'Print Date', labelId: 'Tanggal Cetak', group: 'document' },
+  { token: '{{penyusun}}', label: 'Prepared By', labelId: 'Penyusun', group: 'document' },
+  { token: '{{penyetuju}}', label: 'Approved By', labelId: 'Penyetuju', group: 'document' },
+  { token: '{{total_baris}}', label: 'Total Rows', labelId: 'Total Baris', group: 'document' },
+  { token: '{{total_jam}}', label: 'Total Hours', labelId: 'Total Jam', group: 'document' },
 ];
 
 export function cellKey(row: number, col: number): string {
@@ -188,7 +189,7 @@ export function profileToDefaultSheetTemplate(profile: VendorProfile): SheetTemp
 
   const kopAlign = profile.logoPosition === 'center' ? 'center' : 'left';
   cells[cellKey(0, textStartCol)] = {
-    value: profile.reportTitle || 'LAPORAN AKTIVITAS KERJA HARIAN',
+    value: profile.reportTitle || 'DAILY WORK ACTIVITY REPORT',
     style: { bold: true, fontSize: 14, align: kopAlign, textColor: '#0F172A' },
   };
   cells[cellKey(1, textStartCol)] = {
@@ -196,7 +197,7 @@ export function profileToDefaultSheetTemplate(profile: VendorProfile): SheetTemp
     style: { bold: true, fontSize: 11, align: kopAlign, textColor: profile.headerBgColor },
   };
   cells[cellKey(2, textStartCol)] = {
-    value: 'Periode: {{periode}}   |   Dicetak: {{tanggal_cetak}}',
+    value: 'Period: {{periode}}   |   Printed: {{tanggal_cetak}}',
     style: { fontSize: 10, align: kopAlign, textColor: '#64748B' },
   };
 
@@ -247,7 +248,7 @@ export function profileToDefaultSheetTemplate(profile: VendorProfile): SheetTemp
   if (profile.showSummaryRow) {
     merges.push({ startRow: 6, startCol: 0, endRow: 6, endCol: colCount - 1 });
     cells[cellKey(6, 0)] = {
-      value: 'Total: {{total_baris}} aktivitas · Total Durasi: {{total_jam}}',
+      value: 'Total: {{total_baris}} activities · Total Duration: {{total_jam}}',
       style: {
         bold: true,
         align: 'right',
@@ -266,7 +267,7 @@ export function profileToDefaultSheetTemplate(profile: VendorProfile): SheetTemp
     merges.push({ startRow: 11, startCol: 0, endRow: 11, endCol: leftEnd });
   }
   cells[cellKey(8, 0)] = {
-    value: profile.preparedByLabel || 'Disusun Oleh',
+    value: profile.preparedByLabel || 'Prepared By',
     style: { bold: true, align: 'center', fontSize: 11, textColor: '#334155' },
   };
   cells[cellKey(11, 0)] = {
@@ -281,7 +282,7 @@ export function profileToDefaultSheetTemplate(profile: VendorProfile): SheetTemp
       merges.push({ startRow: 11, startCol: rightStart, endRow: 11, endCol: colCount - 1 });
     }
     cells[cellKey(8, rightStart)] = {
-      value: profile.approvedByLabel || 'Disetujui Oleh',
+      value: profile.approvedByLabel || 'Approved By',
       style: { bold: true, align: 'center', fontSize: 11, textColor: '#334155' },
     };
     cells[cellKey(11, rightStart)] = {

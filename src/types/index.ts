@@ -158,12 +158,15 @@ export type DateDisplayFormat =
 
 export type TimeDisplayFormat = 'HH:mm' | 'HH.mm' | 'hh:mm A';
 
+export type AppLanguage = 'en' | 'id';
+
 export interface AppSettings {
   id: 'default';
   activeVendorId: string;
   defaultPicName: string;
   dateFormat?: DateDisplayFormat;
   timeFormat?: TimeDisplayFormat;
+  language?: AppLanguage;
   savedCustomKeys?: string[];
   savedProfiles?: string[];
   isLoggedIn?: boolean;

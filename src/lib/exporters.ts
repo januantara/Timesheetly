@@ -12,6 +12,7 @@ import {
   buildDefaultTimesheetFilename,
   sanitizeExportFilename,
 } from './formatters';
+import { getActiveLanguage, pickLang } from './i18n';
 import {
   evaluateSheetCell,
   getSheetCellDisplayValue,
@@ -183,7 +184,7 @@ export async function exportToExcel(
 ): Promise<void> {
   const sheet = buildLoopedSheetFromTemplate(profile, activities, meta);
   const defaultName = buildDefaultTimesheetFilename(
-    meta.preparedByName || 'User',
+    meta.preparedByName || pickLang(getActiveLanguage(), 'User', 'Pengguna'),
     activities
   );
   await exportSheetToExcel(
@@ -218,7 +219,9 @@ export async function exportSheetToExcel(
   const colCount = sheet.colWidths.length;
   const rowCount = sheet.rowHeights.length;
   if (colCount === 0 || rowCount === 0) {
-    throw new Error('Sheet laporan masih kosong.');
+    throw new Error(
+      pickLang(getActiveLanguage(), 'Report sheet is empty.', 'Sheet laporan masih kosong.')
+    );
   }
 
   const workbook = new ExcelJS.Workbook();
@@ -226,7 +229,7 @@ export async function exportSheetToExcel(
   workbook.created = new Date();
 
   const safeSheetName =
-    sheetLabel.slice(0, 28).replace(/[*?:\\/[\]]/g, '') || 'Laporan';
+    sheetLabel.slice(0, 28).replace(/[*?:\\/[\]]/g, '') || 'Report';
   const ws = workbook.addWorksheet(safeSheetName, {
     pageSetup: {
       paperSize: 9,
@@ -494,7 +497,7 @@ export async function generateStandaloneHtmlFromSheet(
   );
 
   return `<!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>${escapeHtml(title)}</title>
@@ -548,7 +551,9 @@ export async function exportSheetToPdf(
   const colCount = sheet.colWidths.length;
   const rowCount = sheet.rowHeights.length;
   if (colCount === 0 || rowCount === 0) {
-    throw new Error('Sheet laporan masih kosong.');
+    throw new Error(
+      pickLang(getActiveLanguage(), 'Report sheet is empty.', 'Sheet laporan masih kosong.')
+    );
   }
 
   const parts = await buildSheetHtmlParts(sheet, title, orientation);
@@ -606,7 +611,13 @@ export async function exportSheetToPdf(
 
     const captureTarget = scopeEl ?? (host.querySelector('.sheet-canvas') as HTMLElement | null);
     if (!captureTarget) {
-      throw new Error('Gagal menyiapkan pratinjau PDF.');
+      throw new Error(
+        pickLang(
+          getActiveLanguage(),
+          'Failed to prepare PDF preview.',
+          'Gagal menyiapkan pratinjau PDF.'
+        )
+      );
     }
 
     const captureRect = captureTarget.getBoundingClientRect();

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Download, RotateCcw, Upload, X } from 'lucide-react';
+import { useLanguage } from '../lib/i18n';
 import type {
   ActivityEntry,
   AppSettings,
@@ -31,6 +32,7 @@ export function BackupModal({
   onResetSample,
   onNotify,
 }: BackupModalProps) {
+  const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -51,12 +53,12 @@ export function BackupModal({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `timesheetly-cadangan-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `timesheetly-backup-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    onNotify('success', 'Cadangan data JSON berhasil diunduh.');
+    onNotify('success', t('JSON backup file downloaded.', 'File cadangan JSON diunduh.'));
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,15 +69,17 @@ export function BackupModal({
       const text = await file.text();
       const parsed = JSON.parse(text) as BackupPayload;
       if (!parsed || (!Array.isArray(parsed.activities) && !Array.isArray(parsed.vendorProfiles))) {
-        throw new Error('Format berkas cadangan tidak sesuai.');
+        throw new Error(t('Invalid backup file format.', 'Format file cadangan tidak valid.'));
       }
       await onRestoreBackup(parsed);
-      onNotify('success', 'Data berhasil dipulihkan ke IndexedDB.');
+      onNotify('success', t('Data restored successfully.', 'Data berhasil dipulihkan.'));
       onClose();
     } catch (err) {
       onNotify(
         'error',
-        err instanceof Error ? err.message : 'Gagal membaca berkas cadangan JSON.'
+        err instanceof Error
+          ? err.message
+          : t('Failed to read JSON backup file.', 'Gagal membaca file cadangan JSON.')
       );
     } finally {
       setBusy(false);
@@ -88,10 +92,13 @@ export function BackupModal({
     try {
       await onResetSample();
       setConfirmReset(false);
-      onNotify('success', 'Data aplikasi telah direset ke pengaturan awal.');
+      onNotify(
+        'success',
+        t('Application data has been reset to defaults.', 'Data aplikasi direset ke bawaan awal.')
+      );
       onClose();
     } catch {
-      onNotify('error', 'Gagal mereset data IndexedDB.');
+      onNotify('error', t('Failed to reset data.', 'Gagal mereset data.'));
     } finally {
       setBusy(false);
     }
@@ -107,13 +114,13 @@ export function BackupModal({
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 id="backup-modal-title" className="font-display text-base font-semibold text-slate-900">
-            Data IndexedDB & Cadangan
+            {t('Data & Backup', 'Data & Cadangan')}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            aria-label="Tutup"
+            aria-label={t('Close', 'Tutup')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -122,19 +129,23 @@ export function BackupModal({
         <div className="p-6 space-y-5">
           <div className="grid grid-cols-3 gap-3">
             <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-xs text-slate-500">Aktivitas</div>
+              <div className="text-xs text-slate-500">{t('Activities', 'Aktivitas')}</div>
               <div className="mt-1 font-mono text-xl font-semibold text-slate-900 tabular-nums">
                 {activities.length}
               </div>
             </div>
             <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-xs text-slate-500">Template Vendor</div>
+              <div className="text-xs text-slate-500">
+                {t('Vendor Templates', 'Template Vendor')}
+              </div>
               <div className="mt-1 font-mono text-xl font-semibold text-slate-900 tabular-nums">
                 {vendorProfiles.length}
               </div>
             </div>
             <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-xs text-slate-500">Ekspor Tersimpan</div>
+              <div className="text-xs text-slate-500">
+                {t('Saved Exports', 'Riwayat Ekspor')}
+              </div>
               <div className="mt-1 font-mono text-xl font-semibold text-slate-900 tabular-nums">
                 {savedExports.length}
               </div>
@@ -142,8 +153,10 @@ export function BackupModal({
           </div>
 
           <p className="text-sm text-slate-600 leading-relaxed">
-            Semua aktivitas, template vendor, dan hasil ekspor tersimpan di IndexedDB browser ini.
-            Unduh file JSON untuk memindahkan atau mencadangkan data ke perangkat lain.
+            {t(
+              'All activities, vendor templates, and saved exports are stored locally in this browser. Download a JSON file to transfer or back up your data to another device.',
+              'Semua aktivitas, template vendor, dan riwayat ekspor disimpan secara lokal di browser ini. Unduh file JSON untuk memindahkan atau mencadangkan data ke perangkat lain.'
+            )}
           </p>
 
           <div className="flex flex-wrap gap-3">
@@ -154,7 +167,7 @@ export function BackupModal({
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap"
             >
               <Download className="h-4 w-4" />
-              <span>Unduh Cadangan (.json)</span>
+              <span>{t('Download Backup (.json)', 'Unduh Cadangan (.json)')}</span>
             </button>
 
             <button
@@ -164,7 +177,7 @@ export function BackupModal({
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors whitespace-nowrap"
             >
               <Upload className="h-4 w-4" />
-              <span>Pulihkan dari JSON</span>
+              <span>{t('Restore from JSON', 'Pulihkan dari JSON')}</span>
             </button>
             <input
               ref={fileInputRef}
@@ -183,12 +196,15 @@ export function BackupModal({
                 className="inline-flex items-center gap-2 text-xs font-medium text-slate-500 hover:text-red-600 transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>Reset data ke pengaturan awal</span>
+                <span>{t('Reset data to initial defaults', 'Reset data ke bawaan awal')}</span>
               </button>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-red-200 bg-red-50">
                 <span className="text-xs font-medium text-red-800">
-                  Seluruh aktivitas, riwayat ekspor, dan profil akan dihapus, lalu vendor dikembalikan ke template bawaan. Lanjutkan?
+                  {t(
+                    'All activities, export history, and profiles will be deleted, and vendors will be restored to default templates. Continue?',
+                    'Semua aktivitas, riwayat ekspor, dan profil akan dihapus, serta vendor dikembalikan ke template bawaan. Lanjutkan?'
+                  )}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -196,7 +212,7 @@ export function BackupModal({
                     onClick={() => setConfirmReset(false)}
                     className="px-2.5 py-1 rounded text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50"
                   >
-                    Batal
+                    {t('Cancel', 'Batal')}
                   </button>
                   <button
                     type="button"
@@ -204,7 +220,7 @@ export function BackupModal({
                     disabled={busy}
                     className="px-2.5 py-1 rounded text-xs font-medium text-white bg-red-600 hover:bg-red-700"
                   >
-                    Ya, Reset Data
+                    {t('Yes, Reset Data', 'Ya, Reset Data')}
                   </button>
                 </div>
               </div>

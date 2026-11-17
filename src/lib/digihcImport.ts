@@ -2,6 +2,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { ActivityEntry } from '../types';
 import { calculateDurationMinutes } from './formatters';
+import { getActiveLanguage, pickLang } from './i18n';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -169,9 +170,12 @@ function epochMsToHhMm(rawMs: unknown): string {
 }
 
 function extractJsonArrayCandidate(rawText: string): unknown {
+  const lang = getActiveLanguage();
   const trimmed = rawText.trim();
   if (!trimmed) {
-    throw new Error('Respons JSON DigiHC masih kosong.');
+    throw new Error(
+      pickLang(lang, 'DigiHC JSON response is empty.', 'Response JSON DigiHC masih kosong.')
+    );
   }
 
   const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -212,11 +216,16 @@ function extractJsonArrayCandidate(rawText: string): unknown {
   }
 
   throw new Error(
-    'Format JSON DigiHC tidak valid. Tempelkan array JSON response dari DigiHC.'
+    pickLang(
+      lang,
+      'Invalid DigiHC JSON format. Paste the JSON response array from DigiHC.',
+      'Format JSON DigiHC tidak valid. Tempel array JSON response dari DigiHC.'
+    )
   );
 }
 
 export function parseDigiHcAttendanceText(rawText: string): DigiHcParseResult {
+  const lang = getActiveLanguage();
   const parsed = extractJsonArrayCandidate(rawText);
 
   let rawItems: unknown[] = [];
@@ -233,7 +242,13 @@ export function parseDigiHcAttendanceText(rawText: string): DigiHcParseResult {
   }
 
   if (rawItems.length === 0) {
-    throw new Error('Tidak ditemukan daftar absensi pada JSON DigiHC tersebut.');
+    throw new Error(
+      pickLang(
+        lang,
+        'No attendance records found in the DigiHC JSON.',
+        'Tidak ada data kehadiran ditemukan di dalam JSON DigiHC.'
+      )
+    );
   }
 
   const byDate = new Map<string, DigiHcParsedRecord>();
@@ -243,7 +258,13 @@ export function parseDigiHcAttendanceText(rawText: string): DigiHcParseResult {
   rawItems.forEach((item, idx) => {
     if (!item || typeof item !== 'object') {
       skippedCount++;
-      warnings.push(`Baris #${idx + 1} bukan objek JSON yang valid.`);
+      warnings.push(
+        pickLang(
+          lang,
+          `Row #${idx + 1} is not a valid JSON object.`,
+          `Baris #${idx + 1} bukan objek JSON yang valid.`
+        )
+      );
       return;
     }
 
@@ -251,7 +272,13 @@ export function parseDigiHcAttendanceText(rawText: string): DigiHcParseResult {
     const date = parseDigiHcDate(rec);
     if (!date) {
       skippedCount++;
-      warnings.push(`Baris #${idx + 1} dilewati karena tanggal tidak valid.`);
+      warnings.push(
+        pickLang(
+          lang,
+          `Row #${idx + 1} skipped due to invalid date.`,
+          `Baris #${idx + 1} dilewati karena tanggal tidak valid.`
+        )
+      );
       return;
     }
 
@@ -295,7 +322,11 @@ export function parseDigiHcAttendanceText(rawText: string): DigiHcParseResult {
   if (records.length === 0) {
     throw new Error(
       warnings[0] ||
-        'Tidak ada record absensi DigiHC yang valid (pastikan terdapat periodeHari / attAbsenDate).'
+        pickLang(
+          lang,
+          'No valid DigiHC attendance records found (ensure periodeHari / attAbsenDate is present).',
+          'Tidak ada data kehadiran DigiHC yang valid (pastikan periodeHari / attAbsenDate tersedia).'
+        )
     );
   }
 
@@ -357,6 +388,7 @@ function isFlagToken(str: string): boolean {
 export async function parseDigiHcAttendancePdf(
   fileOrBuffer: File | ArrayBuffer
 ): Promise<DigiHcParseResult> {
+  const lang = getActiveLanguage();
   const rawBuffer =
     fileOrBuffer instanceof ArrayBuffer
       ? fileOrBuffer
@@ -482,7 +514,13 @@ export async function parseDigiHcAttendancePdf(
       const flagRaw = ketTok ? ketTok.str.trim().toUpperCase() : 'H';
       if (!flagRaw) {
         skippedCount++;
-        warnings.push(`Tanggal ${dateVal} dilewati karena keterangan tidak terbaca.`);
+        warnings.push(
+          pickLang(
+            lang,
+            `Date ${dateVal} skipped because the status note could not be read.`,
+            `Tanggal ${dateVal} dilewati karena keterangan status tidak terbaca.`
+          )
+        );
         continue;
       }
 
@@ -519,7 +557,11 @@ export async function parseDigiHcAttendancePdf(
 
   if (records.length === 0) {
     throw new Error(
-      'Tidak ditemukan tabel absensi DigiHC di file PDF ini. Pastikan file adalah PDF Laporan Kehadiran Karyawan dari DigiHC.'
+      pickLang(
+        lang,
+        'No DigiHC attendance table found in this PDF. Please upload an Employee Attendance Report PDF from DigiHC.',
+        'Tabel kehadiran DigiHC tidak ditemukan di PDF ini. Unggah file PDF Laporan Kehadiran Karyawan dari DigiHC.'
+      )
     );
   }
 

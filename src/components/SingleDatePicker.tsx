@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatDateByPattern, getIndonesianDayName, getTodayIsoDate } from '../lib/formatters';
+import {
+  formatDateByPattern,
+  getDayNameByLanguage,
+  getTodayIsoDate,
+} from '../lib/formatters';
+import { useLanguage } from '../lib/i18n';
 import type { DateDisplayFormat } from '../types';
 
 interface DateMeta {
@@ -14,6 +19,21 @@ interface SingleDatePickerProps {
   dateFormat?: DateDisplayFormat;
   existingByDate?: Map<string, DateMeta>;
 }
+
+const MONTH_NAMES_EN = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 const MONTH_NAMES_ID = [
   'Januari',
@@ -30,6 +50,7 @@ const MONTH_NAMES_ID = [
   'Desember',
 ];
 
+const WEEKDAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEKDAYS_ID = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 function toIsoDate(year: number, monthZeroIdx: number, day: number): string {
@@ -51,8 +72,12 @@ export function SingleDatePicker({
   dateFormat = 'dd MMMM yyyy',
   existingByDate,
 }: SingleDatePickerProps) {
+  const { lang, t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+
+  const monthNames = lang === 'id' ? MONTH_NAMES_ID : MONTH_NAMES_EN;
+  const weekdays = lang === 'id' ? WEEKDAYS_ID : WEEKDAYS_EN;
 
   const initialAnchor = useMemo(() => {
     const parsed = parseIsoYearMonth(value);
@@ -140,8 +165,10 @@ export function SingleDatePicker({
     yesterdayObj.getDate()
   );
 
-  const dayName = getIndonesianDayName(value);
-  const displayDate = value ? formatDateByPattern(value, dateFormat) : 'Pilih tanggal...';
+  const dayName = getDayNameByLanguage(value, lang);
+  const displayDate = value
+    ? formatDateByPattern(value, dateFormat)
+    : t('Select date...', 'Pilih tanggal...');
 
   const yearOptions = useMemo(() => {
     const base = new Date().getFullYear();
@@ -157,7 +184,7 @@ export function SingleDatePicker({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label="Pilih tanggal"
+        aria-label={t('Select date', 'Pilih tanggal')}
         className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg border bg-white text-left transition-colors ${
           open
             ? 'border-blue-600 ring-2 ring-blue-500/20'
@@ -191,7 +218,7 @@ export function SingleDatePicker({
             <button
               type="button"
               onClick={prevMonth}
-              aria-label="Bulan sebelumnya"
+              aria-label={t('Previous month', 'Bulan sebelumnya')}
               className="p-1 rounded-md text-slate-600 hover:bg-slate-100 transition-colors"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
@@ -201,10 +228,10 @@ export function SingleDatePicker({
               <select
                 value={viewMonth}
                 onChange={(e) => setViewMonth(Number(e.target.value))}
-                aria-label="Pilih bulan"
+                aria-label={t('Select month', 'Pilih bulan')}
                 className="px-1 py-0.5 rounded border border-transparent hover:border-slate-200 bg-transparent text-[11px] font-semibold text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer"
               >
-                {MONTH_NAMES_ID.map((mName, idx) => (
+                {monthNames.map((mName, idx) => (
                   <option key={mName} value={idx}>
                     {mName}
                   </option>
@@ -213,7 +240,7 @@ export function SingleDatePicker({
               <select
                 value={viewYear}
                 onChange={(e) => setViewYear(Number(e.target.value))}
-                aria-label="Pilih tahun"
+                aria-label={t('Select year', 'Pilih tahun')}
                 className="px-1 py-0.5 rounded border border-transparent hover:border-slate-200 bg-transparent text-[11px] font-semibold text-slate-900 font-mono focus:outline-none focus:border-blue-500 cursor-pointer"
               >
                 {yearOptions.map((yr) => (
@@ -227,7 +254,7 @@ export function SingleDatePicker({
             <button
               type="button"
               onClick={nextMonth}
-              aria-label="Bulan berikutnya"
+              aria-label={t('Next month', 'Bulan berikutnya')}
               className="p-1 rounded-md text-slate-600 hover:bg-slate-100 transition-colors"
             >
               <ChevronRight className="h-3.5 w-3.5" />
@@ -236,7 +263,7 @@ export function SingleDatePicker({
 
           <div>
             <div className="grid grid-cols-7 gap-0.5 mb-0.5">
-              {WEEKDAYS_ID.map((w, idx) => (
+              {weekdays.map((w, idx) => (
                 <div
                   key={w}
                   className={`text-center text-[10px] font-semibold py-0.5 ${
@@ -304,7 +331,7 @@ export function SingleDatePicker({
               }}
               className="px-2 py-1 rounded-md border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             >
-              Kemarin
+              {t('Yesterday', 'Kemarin')}
             </button>
             <button
               type="button"
@@ -314,7 +341,7 @@ export function SingleDatePicker({
               }}
               className="px-2 py-1 rounded-md bg-blue-50 border border-blue-200 text-[11px] font-medium text-blue-700 hover:bg-blue-100 transition-colors"
             >
-              Hari Ini
+              {t('Today', 'Hari Ini')}
             </button>
           </div>
         </div>

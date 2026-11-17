@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { useLanguage } from '../lib/i18n';
 
 export interface ToastMessage {
   id: number;
@@ -12,6 +13,7 @@ interface ToastProps {
 }
 
 export function Toast({ toast, onDismiss }: ToastProps) {
+  const { t } = useLanguage();
   if (!toast) return null;
 
   return (
@@ -30,7 +32,7 @@ export function Toast({ toast, onDismiss }: ToastProps) {
         type="button"
         onClick={onDismiss}
         className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0"
-        aria-label="Tutup notifikasi"
+        aria-label={t('Dismiss notification', 'Tutup notifikasi')}
       >
         <X className="h-3.5 w-3.5" />
       </button>

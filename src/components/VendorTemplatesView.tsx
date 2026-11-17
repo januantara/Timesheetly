@@ -12,6 +12,8 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { useLanguage } from '../lib/i18n';
+import { getDefaultActiveVendorId } from '../lib/seedData';
 import { ensureSheetTemplate } from '../lib/sheetTemplate';
 import {
   exportAllVendorTemplatesToJson,
@@ -39,8 +41,12 @@ export function VendorTemplatesView({
   onDeleteProfile,
   onNotify,
 }: VendorTemplatesViewProps) {
+  const { t } = useLanguage();
+  const fallbackId = getDefaultActiveVendorId(vendorProfiles);
   const selectedProfile =
-    vendorProfiles.find((v) => v.id === activeVendorId) ?? vendorProfiles[0];
+    vendorProfiles.find((v) => v.id === activeVendorId) ??
+    vendorProfiles.find((v) => v.id === fallbackId) ??
+    vendorProfiles[0];
 
   const [draft, setDraft] = useState<VendorProfile | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -111,7 +117,7 @@ export function VendorTemplatesView({
 
   const persistProfile = async (profileToSave: VendorProfile, showToast = true) => {
     if (!profileToSave.vendorName.trim()) {
-      onNotify('error', 'Nama vendor wajib diisi.');
+      onNotify('error', t('Vendor name is required.', 'Nama vendor wajib diisi.'));
       return false;
     }
     setSaving(true);
@@ -125,11 +131,17 @@ export function VendorTemplatesView({
       setDraft(structuredClone(updated));
       setDirty(false);
       if (showToast) {
-        onNotify('success', `Template ${updated.vendorName} disimpan.`);
+        onNotify(
+          'success',
+          t(
+            `Template ${updated.vendorName} saved.`,
+            `Template ${updated.vendorName} berhasil disimpan.`
+          )
+        );
       }
       return true;
     } catch {
-      onNotify('error', 'Gagal menyimpan template.');
+      onNotify('error', t('Failed to save template.', 'Gagal menyimpan template.'));
       return false;
     } finally {
       setSaving(false);
@@ -141,7 +153,13 @@ export function VendorTemplatesView({
     if (nextVendorId === draft.id) return;
     if (dirty) {
       await persistProfile(draft, false);
-      onNotify('success', `Perubahan pada ${draft.vendorName} otomatis disimpan.`);
+      onNotify(
+        'success',
+        t(
+          `Changes to ${draft.vendorName} auto-saved.`,
+          `Perubahan pada ${draft.vendorName} disimpan otomatis.`
+        )
+      );
     }
     await onSelectActiveVendor(nextVendorId);
   };
@@ -154,11 +172,11 @@ export function VendorTemplatesView({
       rowHeights: [34, 24, 16, 30, 36, 26, 26],
       cells: {
         '0,0': {
-          value: 'LAPORAN AKTIVITAS HARIAN',
+          value: 'DAILY ACTIVITY REPORT',
           style: { bold: true, fontSize: 14, align: 'left', textColor: '#0F172A' },
         },
         '1,0': {
-          value: 'Periode: {{periode}}',
+          value: 'Period: {{periode}}',
           style: { fontSize: 10, align: 'left', textColor: '#64748B' },
         },
         '3,0': {
@@ -166,15 +184,15 @@ export function VendorTemplatesView({
           style: { bold: true, align: 'center', bgColor: '#1E3A8A', textColor: '#FFFFFF', border: true },
         },
         '3,1': {
-          value: 'Tanggal',
+          value: 'Date',
           style: { bold: true, align: 'center', bgColor: '#1E3A8A', textColor: '#FFFFFF', border: true },
         },
         '3,2': {
-          value: 'Hari',
+          value: 'Day',
           style: { bold: true, align: 'center', bgColor: '#1E3A8A', textColor: '#FFFFFF', border: true },
         },
         '3,3': {
-          value: 'Jam',
+          value: 'Time',
           style: { bold: true, align: 'center', bgColor: '#1E3A8A', textColor: '#FFFFFF', border: true },
         },
         '3,4': {
@@ -198,8 +216,8 @@ export function VendorTemplatesView({
 
     const newProfile: VendorProfile = {
       id: newId,
-      vendorName: `Vendor Baru ${vendorProfiles.length + 1}`,
-      reportTitle: 'LAPORAN AKTIVITAS HARIAN',
+      vendorName: `New Vendor ${vendorProfiles.length + 1}`,
+      reportTitle: 'DAILY ACTIVITY REPORT',
       subtitle: '',
       logoDataUrl: '',
       logoPosition: 'left',
@@ -208,21 +226,21 @@ export function VendorTemplatesView({
       paperOrientation: 'landscape',
       showSummaryRow: false,
       footerNotes: '',
-      preparedByLabel: 'Disusun Oleh',
-      approvedByLabel: 'Disetujui Oleh',
+      preparedByLabel: 'Prepared By',
+      approvedByLabel: 'Approved By',
       columns: [],
       sheetTemplate: blankSheet,
       updatedAt: new Date().toISOString(),
     };
     await onSaveProfile(newProfile);
     await onSelectActiveVendor(newId);
-    onNotify('success', 'Template vendor baru dibuat.');
+    onNotify('success', t('New vendor template created.', 'Template vendor baru berhasil dibuat.'));
   };
 
   const commitNameEdit = () => {
     const trimmed = nameInput.trim();
     if (!trimmed) {
-      onNotify('error', 'Nama vendor tidak boleh kosong.');
+      onNotify('error', t('Vendor name cannot be empty.', 'Nama vendor tidak boleh kosong.'));
       return;
     }
     if (trimmed !== draft.vendorName) {
@@ -252,13 +270,21 @@ export function VendorTemplatesView({
       onNotify(
         'success',
         imported.length === 1
-          ? `Template "${imported[0].vendorName}" berhasil diimpor.`
-          : `${imported.length} template vendor berhasil diimpor.`
+          ? t(
+              `Template "${imported[0].vendorName}" imported.`,
+              `Template "${imported[0].vendorName}" berhasil diimpor.`
+            )
+          : t(
+              `${imported.length} vendor templates imported.`,
+              `${imported.length} template vendor berhasil diimpor.`
+            )
       );
     } catch (err) {
       onNotify(
         'error',
-        err instanceof Error ? err.message : 'Gagal mengimpor file template vendor.'
+        err instanceof Error
+          ? err.message
+          : t('Failed to import vendor template file.', 'Gagal mengimpor file template vendor.')
       );
     } finally {
       setImporting(false);
@@ -271,18 +297,32 @@ export function VendorTemplatesView({
   const handleExportSingleJson = () => {
     setExportMenuOpen(false);
     exportVendorTemplateToJson(draft);
-    onNotify('success', `Template "${draft.vendorName}" (.json) berhasil diekspor.`);
+    onNotify(
+      'success',
+      t(
+        `Template "${draft.vendorName}" (.json) exported.`,
+        `Template "${draft.vendorName}" (.json) berhasil diekspor.`
+      )
+    );
   };
 
   const handleExportSingleExcel = async () => {
     setExportMenuOpen(false);
     try {
       await exportVendorTemplateToExcel(draft);
-      onNotify('success', `Template "${draft.vendorName}" (.xlsx) berhasil diekspor.`);
+      onNotify(
+        'success',
+        t(
+          `Template "${draft.vendorName}" (.xlsx) exported.`,
+          `Template "${draft.vendorName}" (.xlsx) berhasil diekspor.`
+        )
+      );
     } catch (err) {
       onNotify(
         'error',
-        err instanceof Error ? err.message : 'Gagal mengekspor template ke Excel.'
+        err instanceof Error
+          ? err.message
+          : t('Failed to export template to Excel.', 'Gagal mengekspor template ke Excel.')
       );
     }
   };
@@ -291,7 +331,13 @@ export function VendorTemplatesView({
     setExportMenuOpen(false);
     const list = vendorProfiles.map((v) => (v.id === draft.id ? draft : v));
     exportAllVendorTemplatesToJson(list);
-    onNotify('success', `${list.length} template vendor (.json) berhasil diekspor.`);
+    onNotify(
+      'success',
+      t(
+        `${list.length} vendor templates (.json) exported.`,
+        `${list.length} template vendor (.json) berhasil diekspor.`
+      )
+    );
   };
 
   return (
@@ -310,15 +356,15 @@ export function VendorTemplatesView({
                   if (e.key === 'Enter') commitNameEdit();
                   if (e.key === 'Escape') setEditingName(false);
                 }}
-                placeholder="Nama vendor..."
+                placeholder={t('Vendor name...', 'Nama vendor...')}
                 autoFocus
                 className="px-3 py-1.5 rounded-lg border border-blue-600 bg-white text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 w-56 sm:w-64"
               />
               <button
                 type="button"
                 onClick={commitNameEdit}
-                title="Terapkan nama"
-                aria-label="Terapkan nama"
+                title={t('Apply name', 'Terapkan nama')}
+                aria-label={t('Apply name', 'Terapkan nama')}
                 className="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
               >
                 <Check className="h-4 w-4" />
@@ -326,8 +372,8 @@ export function VendorTemplatesView({
               <button
                 type="button"
                 onClick={() => setEditingName(false)}
-                title="Batal"
-                aria-label="Batal"
+                title={t('Cancel', 'Batal')}
+                aria-label={t('Cancel', 'Batal')}
                 className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors"
               >
                 <X className="h-4 w-4" />
@@ -369,7 +415,7 @@ export function VendorTemplatesView({
                 {dropdownOpen && (
                   <div
                     role="listbox"
-                    aria-label="Daftar template vendor"
+                    aria-label={t('Vendor template list', 'Daftar template vendor')}
                     className="absolute left-0 top-full mt-1.5 z-50 w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 space-y-0.5"
                   >
                     {vendorProfiles.map((vendor) => {
@@ -412,8 +458,11 @@ export function VendorTemplatesView({
                               {vendor.vendorName}
                             </div>
                             <div className="text-[11px] text-slate-500 font-mono tabular-nums">
-                              {tpl.colWidths.length} kolom × {tpl.rowHeights.length} baris ·{' '}
-                              {vendor.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}
+                              {tpl.colWidths.length} {t('cols', 'kolom')} × {tpl.rowHeights.length}{' '}
+                              {t('rows', 'baris')} ·{' '}
+                              {vendor.paperOrientation === 'landscape'
+                                ? t('Landscape', 'Lanskap')
+                                : t('Portrait', 'Potret')}
                             </div>
                           </div>
 
@@ -435,8 +484,8 @@ export function VendorTemplatesView({
                   setEditingName(true);
                   setDropdownOpen(false);
                 }}
-                title="Ubah nama vendor"
-                aria-label="Ubah nama vendor"
+                title={t('Rename vendor', 'Ubah nama vendor')}
+                aria-label={t('Rename vendor', 'Ubah nama vendor')}
                 className="p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50/50 transition-colors"
               >
                 <Pencil className="h-4 w-4" />
@@ -448,11 +497,11 @@ export function VendorTemplatesView({
           <button
             type="button"
             onClick={handleCreateNewProfile}
-            title="Tambah template vendor baru"
+            title={t('Add new vendor template', 'Tambah template vendor baru')}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
           >
             <Plus className="h-3.5 w-3.5 text-blue-600" />
-            <span>Tambah</span>
+            <span>{t('Add', 'Tambah')}</span>
           </button>
 
           {/* Import Template (.json / .xlsx) */}
@@ -460,11 +509,14 @@ export function VendorTemplatesView({
             type="button"
             onClick={() => importFileRef.current?.click()}
             disabled={importing}
-            title="Impor template vendor dari file JSON atau Excel (.xlsx)"
+            title={t(
+              'Import vendor template from JSON or Excel (.xlsx)',
+              'Impor template vendor dari JSON atau Excel (.xlsx)'
+            )}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap disabled:opacity-50"
           >
             <Upload className="h-3.5 w-3.5 text-slate-500" />
-            <span>{importing ? 'Mengimpor...' : 'Impor'}</span>
+            <span>{importing ? t('Importing...', 'Mengimpor...') : t('Import', 'Impor')}</span>
           </button>
           <input
             ref={importFileRef}
@@ -480,11 +532,11 @@ export function VendorTemplatesView({
               type="button"
               onClick={() => setExportMenuOpen((v) => !v)}
               aria-expanded={exportMenuOpen}
-              title="Ekspor template vendor"
+              title={t('Export vendor template', 'Ekspor template vendor')}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
             >
               <Download className="h-3.5 w-3.5 text-slate-500" />
-              <span>Ekspor</span>
+              <span>{t('Export', 'Ekspor')}</span>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
             </button>
 
@@ -498,10 +550,10 @@ export function VendorTemplatesView({
                   <FileJson className="h-4 w-4 text-blue-600 shrink-0" />
                   <div>
                     <div className="font-semibold text-slate-900">
-                      Ekspor Template Ini (.json)
+                      {t('Export This Template (.json)', 'Ekspor Template Ini (.json)')}
                     </div>
                     <div className="text-[11px] text-slate-500">
-                      Format lengkap siap impor ulang
+                      {t('Full format ready for re-import', 'Format lengkap siap impor ulang')}
                     </div>
                   </div>
                 </button>
@@ -514,10 +566,10 @@ export function VendorTemplatesView({
                   <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
                   <div>
                     <div className="font-semibold text-slate-900">
-                      Ekspor Template Ini (.xlsx)
+                      {t('Export This Template (.xlsx)', 'Ekspor Template Ini (.xlsx)')}
                     </div>
                     <div className="text-[11px] text-slate-500">
-                      Unduh struktur sheet sebagai Excel
+                      {t('Download sheet structure as Excel', 'Unduh struktur sheet sebagai Excel')}
                     </div>
                   </div>
                 </button>
@@ -531,10 +583,16 @@ export function VendorTemplatesView({
                     <Download className="h-4 w-4 text-slate-600 shrink-0" />
                     <div>
                       <div className="font-semibold text-slate-900">
-                        Ekspor Semua Template ({vendorProfiles.length})
+                        {t(
+                          `Export All Templates (${vendorProfiles.length})`,
+                          `Ekspor Semua Template (${vendorProfiles.length})`
+                        )}
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        Gabung semua profil ke satu JSON
+                        {t(
+                          'Combine all profiles into one JSON file',
+                          'Gabungkan semua profil ke satu file JSON'
+                        )}
                       </div>
                     </div>
                   </button>
@@ -557,13 +615,13 @@ export function VendorTemplatesView({
                   );
                   setDirty(true);
                 }}
-                className={`px-2.5 py-1.5 rounded-md font-medium capitalize transition-colors ${
+                className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${
                   draft.paperOrientation === ori
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {ori}
+                {ori === 'landscape' ? t('Landscape', 'Lanskap') : t('Portrait', 'Potret')}
               </button>
             ))}
           </div>
@@ -575,12 +633,16 @@ export function VendorTemplatesView({
             disabled={saving}
             title={
               saving
-                ? 'Menyimpan...'
+                ? t('Saving...', 'Menyimpan...')
                 : dirty
-                ? 'Simpan perubahan template'
-                : 'Template tersimpan'
+                ? t('Save template changes', 'Simpan perubahan template')
+                : t('Template saved', 'Template tersimpan')
             }
-            aria-label={dirty ? 'Simpan perubahan template' : 'Template tersimpan'}
+            aria-label={
+              dirty
+                ? t('Save template changes', 'Simpan perubahan template')
+                : t('Template saved', 'Template tersimpan')
+            }
             className={`relative p-2 rounded-lg border transition-colors ${
               dirty
                 ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700'
@@ -602,23 +664,25 @@ export function VendorTemplatesView({
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
-                title="Hapus template vendor"
-                aria-label="Hapus template vendor"
+                title={t('Delete vendor template', 'Hapus template vendor')}
+                aria-label={t('Delete vendor template', 'Hapus template vendor')}
                 className="p-2 rounded-lg border border-slate-200 bg-white text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
             ) : (
               <div className="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg border border-red-200 bg-red-50">
-                <span className="text-xs font-medium text-red-700 mr-0.5">Hapus?</span>
+                <span className="text-xs font-medium text-red-700 mr-0.5">
+                  {t('Delete?', 'Hapus?')}
+                </span>
                 <button
                   type="button"
                   onClick={async () => {
                     await onDeleteProfile(draft.id);
                     setConfirmDelete(false);
                   }}
-                  title="Ya, hapus"
-                  aria-label="Ya, hapus"
+                  title={t('Yes, delete', 'Ya, hapus')}
+                  aria-label={t('Yes, delete', 'Ya, hapus')}
                   className="p-1 rounded bg-red-600 text-white hover:bg-red-700"
                 >
                   <Check className="h-3.5 w-3.5" />
@@ -626,8 +690,8 @@ export function VendorTemplatesView({
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(false)}
-                  title="Batal"
-                  aria-label="Batal"
+                  title={t('Cancel', 'Batal')}
+                  aria-label={t('Cancel', 'Batal')}
                   className="p-1 rounded bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                 >
                   <X className="h-3.5 w-3.5" />

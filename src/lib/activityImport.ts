@@ -1,5 +1,6 @@
 import type { ActivityEntry, ActivityFilterState } from '../types';
 import { calculateDurationMinutes, getTodayIsoDate } from './formatters';
+import { getActiveLanguage, pickLang } from './i18n';
 
 export interface PromptBuilderOptions {
   accountName: string;
@@ -164,9 +165,12 @@ function extractActivityText(rec: Record<string, unknown>): string {
 }
 
 function extractJsonCandidate(rawText: string): unknown {
+  const lang = getActiveLanguage();
   const trimmed = rawText.trim();
   if (!trimmed) {
-    throw new Error('Teks atau file JSON masih kosong.');
+    throw new Error(
+      pickLang(lang, 'JSON text or file is empty.', 'Teks atau file JSON masih kosong.')
+    );
   }
 
   // 1. Try fenced code block ```json ... ``` or ``` ... ```
@@ -211,7 +215,11 @@ function extractJsonCandidate(rawText: string): unknown {
   }
 
   throw new Error(
-    'Format JSON tidak dikenali. Pastikan output prompt berupa JSON yang valid.'
+    pickLang(
+      lang,
+      'Unrecognized JSON format. Make sure the prompt output is valid JSON.',
+      'Format JSON tidak dikenali. Pastikan output prompt berupa JSON yang valid.'
+    )
   );
 }
 
@@ -229,6 +237,7 @@ export function parseImportedActivitiesText(
   rawText: string,
   accountName: string
 ): ParsedActivityImportResult {
+  const lang = getActiveLanguage();
   const parsed = extractJsonCandidate(rawText);
 
   let rawItems: unknown[] = [];
@@ -249,12 +258,16 @@ export function parseImportedActivitiesText(
 
   if (rawItems.length === 0) {
     throw new Error(
-      'Tidak ditemukan daftar "activities" di dalam JSON tersebut.'
+      pickLang(
+        lang,
+        'No "activities" list found in the JSON.',
+        'Daftar "activities" tidak ditemukan di dalam JSON.'
+      )
     );
   }
 
   const nowIso = new Date().toISOString();
-  const ownerPic = accountName.trim() || 'Akun Saya';
+  const ownerPic = accountName.trim() || pickLang(lang, 'My Account', 'Akun Saya');
   const entries: ActivityEntry[] = [];
   const warnings: string[] = [];
   let skippedCount = 0;
@@ -262,7 +275,13 @@ export function parseImportedActivitiesText(
   rawItems.forEach((item, idx) => {
     if (!item || typeof item !== 'object') {
       skippedCount++;
-      warnings.push(`Baris #${idx + 1} bukan objek JSON yang valid.`);
+      warnings.push(
+        pickLang(
+          lang,
+          `Row #${idx + 1} is not a valid JSON object.`,
+          `Baris #${idx + 1} bukan objek JSON yang valid.`
+        )
+      );
       return;
     }
     const rec = item as Record<string, unknown>;
@@ -271,12 +290,24 @@ export function parseImportedActivitiesText(
 
     if (!date) {
       skippedCount++;
-      warnings.push(`Baris #${idx + 1} dilewati karena tanggal tidak valid/kosong.`);
+      warnings.push(
+        pickLang(
+          lang,
+          `Row #${idx + 1} skipped due to invalid or missing date.`,
+          `Baris #${idx + 1} dilewati karena tanggal tidak valid atau kosong.`
+        )
+      );
       return;
     }
     if (!activityText) {
       skippedCount++;
-      warnings.push(`Baris #${idx + 1} (${date}) dilewati karena isi activity kosong.`);
+      warnings.push(
+        pickLang(
+          lang,
+          `Row #${idx + 1} (${date}) skipped because activity text is empty.`,
+          `Baris #${idx + 1} (${date}) dilewati karena teks aktivitas kosong.`
+        )
+      );
       return;
     }
 
@@ -338,7 +369,11 @@ export function parseImportedActivitiesText(
   if (entries.length === 0) {
     throw new Error(
       warnings[0] ||
-        'Tidak ada baris aktivitas valid yang bisa diimpor. Pastikan setiap item memiliki "date" (YYYY-MM-DD) dan "activity".'
+        pickLang(
+          lang,
+          'No valid activity rows found to import. Ensure each item has "date" (YYYY-MM-DD) and "activity".',
+          'Tidak ada baris aktivitas valid yang dapat diimpor. Pastikan tiap item memiliki "date" (YYYY-MM-DD) dan "activity".'
+        )
     );
   }
 

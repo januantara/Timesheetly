@@ -9,6 +9,7 @@ export interface TemplateTourControllers {
   closeImportModal: () => void;
   openExportModal: () => void;
   closeExportModal: () => void;
+  setShowSamplePreview: (show: boolean) => void;
 }
 
 function waitForRender(callback: () => void, delayMs = 90) {
@@ -22,6 +23,7 @@ export function startTemplateGenerationTour(
 ): Driver {
   controllers.closeImportModal();
   controllers.closeExportModal();
+  controllers.setShowSamplePreview(false);
   controllers.goToActivitiesView();
 
   let activeDriver: Driver | null = null;
@@ -30,9 +32,9 @@ export function startTemplateGenerationTour(
     {
       element: '[data-tour="copy-prompt"]',
       popover: {
-        title: '1. Copy Prompt Aktivitas',
+        title: '1. Copy Prompt Activity Recap',
         description:
-          'Mulai dengan klik tombol "Copy Prompt", lalu jalankan prompt tersebut di root folder project Anda untuk mengekstrak daftar pekerjaan ke dalam format JSON.',
+          'Mulai dengan klik button Copy Prompt, lalu jalankan prompt tersebut di root folder project dengan AI yang Anda miliki untuk mengekstrak commit message yang akan dijadikan sebagai activity dalam timesheet ke dalam format JSON.',
         side: 'bottom',
         align: 'end',
       },
@@ -42,7 +44,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '2. Buka Menu Impor',
         description:
-          'Setelah menyiapkan hasil JSON aktivitas dan laporan absensi DigiHC, klik tombol "Impor" untuk memasukkannya ke Timesheet.',
+          'Setelah prompt yang Anda jalankan menghasilkan output JSON, bukalah menu Impor untuk memasukkan aktivitas timesheet dari commit message yang pernah Anda push.',
         side: 'bottom',
         align: 'end',
         onNextClick: (_el, _step, opts) => {
@@ -57,9 +59,9 @@ export function startTemplateGenerationTour(
       element: '[data-tour="import-tab-json"]',
       waitForElement: 1200,
       popover: {
-        title: '3. Impor Aktivitas (JSON)',
+        title: '3. Impor Aktivitas JSON',
         description:
-          'Pada tab "Aktivitas (JSON)", tempelkan output JSON dari prompt (atau pilih file JSON) lalu klik "Impor Aktivitas".',
+          'Tab ini berfungsi untuk mengimpor aktivitas timesheet secara otomatis dari commit message Anda.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
@@ -80,9 +82,9 @@ export function startTemplateGenerationTour(
       element: '[data-tour="import-tab-digihc"]',
       waitForElement: 1200,
       popover: {
-        title: '4. Impor Check-In/Out DigiHC',
+        title: '4. Tab Check-In/Out DigiHC',
         description:
-          'Lanjutkan ke tab "Check-In/Out DigiHC" untuk mengunggah file PDF Laporan Kehadiran atau JSON DigiHC agar jam masuk, jam pulang, dan hari libur (LIB) otomatis terpasang.',
+          'Tab ini adalah tab untuk mengimpor jam mulai kerja dan pulang dari jam yang tercatat di DigiHC. Anda dapat mengimpornya dengan mengunggah file PDF yang didapatkan dari DigiHC atau mengimpornya dari JSON response yang didapatkan di DigiHC (males bat).',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
@@ -92,25 +94,25 @@ export function startTemplateGenerationTour(
           });
         },
         onNextClick: (_el, _step, opts) => {
+          controllers.setShowSamplePreview(true);
           controllers.closeImportModal();
           waitForRender(() => {
             opts.driver.moveNext();
-          });
+          }, 110);
         },
       },
     },
     {
-      element: () =>
-        document.querySelector('[data-tour="select-all-toggle"]') ??
-        document.querySelector('[data-tour="activities-table-card"]') ??
-        document.body,
+      element: '[data-tour="select-all-toggle"]',
+      waitForElement: 1200,
       popover: {
-        title: '5. Pilih Toggle Semua Aktivitas',
+        title: '5. Pilih Aktivitas',
         description:
-          'Setelah data aktivitas & DigiHC muncul di tabel, centang toggle "Pilih Semua" di pojok kiri atas header tabel untuk memilih seluruh aktivitas yang akan diekspor.',
+          'Setelah data aktivitas dan DigiHC masuk ke tabel, aktifkan toggle Pilih Semua di pojok kiri atas header tabel (atau pilih baris tertentu) untuk menandai aktivitas yang akan diekspor.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
+          controllers.setShowSamplePreview(false);
           controllers.openImportModal('digihc');
           waitForRender(() => {
             opts.driver.movePrevious();
@@ -123,7 +125,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '6. Klik Tombol Ekspor',
         description:
-          'Setelah aktivitas dipilih, klik tombol "Ekspor" untuk memilih template vendor dan men-generate dokumen laporan.',
+          'Setelah aktivitas dipilih, klik tombol "Ekspor" untuk memilih template vendor dan men-generate file timesheet.',
         side: 'bottom',
         align: 'end',
         onNextClick: (_el, _step, opts) => {
@@ -140,7 +142,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '7. Pilih Template Vendor',
         description:
-          'Pilih template vendor yang sesuai (MII, SDD, atau NTT Data) lalu sesuaikan nama file laporan jika diperlukan.',
+          'Pilih template vendor yang sesuai (MII, SDD, atau NTT Data), lalu sesuaikan nama file laporan jika diperlukan. Anda juga bisa menambahkan template di menu Template Vendor bila vendor Anda belum ada di sini.',
         side: 'bottom',
         align: 'start',
         onPrevClick: (_el, _step, opts) => {
@@ -157,7 +159,7 @@ export function startTemplateGenerationTour(
       popover: {
         title: '8. Save as PDF',
         description:
-          'Terakhir, klik "Download PDF" untuk langsung menyimpan laporan sebagai file PDF satu halaman (atau klik "Simpan" bila ingin mengedit sel terlebih dahulu di Pratinjau).',
+          'Terakhir, klik "Download PDF" untuk menyimpan laporan sebagai file PDF satu halaman (atau klik "Simpan" bila ingin mengedit sel terlebih dahulu di Pratinjau).',
         side: 'top',
         align: 'end',
       },
@@ -181,6 +183,7 @@ export function startTemplateGenerationTour(
     onDestroyed: () => {
       controllers.closeImportModal();
       controllers.closeExportModal();
+      controllers.setShowSamplePreview(false);
     },
   });
 

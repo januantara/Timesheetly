@@ -16,6 +16,8 @@ import {
   buildDefaultTimesheetFilename,
   formatDateByPattern,
 } from '../lib/formatters';
+import { useLanguage } from '../lib/i18n';
+import { getDefaultActiveVendorId } from '../lib/seedData';
 import {
   buildLoopedSheetFromTemplate,
   ensureSheetTemplate,
@@ -60,6 +62,7 @@ export function ExportVendorModal({
   onSaveToPreview,
   onNotify,
 }: ExportVendorModalProps) {
+  const { t } = useLanguage();
   const [selectedVendorId, setSelectedVendorId] = useState(defaultVendorId);
   const [fileName, setFileName] = useState('');
   const [busyAction, setBusyAction] = useState<
@@ -86,8 +89,11 @@ export function ExportVendorModal({
 
   useEffect(() => {
     if (!open) return;
+    const fallbackId = getDefaultActiveVendorId(vendorProfiles);
     const initialVendor =
-      vendorProfiles.find((v) => v.id === defaultVendorId) ?? vendorProfiles[0];
+      vendorProfiles.find((v) => v.id === defaultVendorId) ??
+      vendorProfiles.find((v) => v.id === fallbackId) ??
+      vendorProfiles[0];
     setSelectedVendorId(initialVendor?.id ?? '');
     setFileName(defaultFileName);
     setBusyAction(null);
@@ -130,11 +136,17 @@ export function ExportVendorModal({
         selectedVendor.paperOrientation
       );
       await syncChosenVendor(selectedVendor);
-      onNotify('success', `PDF "${effectiveFileName}" berhasil diunduh.`);
+      onNotify(
+        'success',
+        t(
+          `PDF "${effectiveFileName}" downloaded.`,
+          `PDF "${effectiveFileName}" berhasil diunduh.`
+        )
+      );
     } catch (err) {
       onNotify(
         'error',
-        err instanceof Error ? err.message : 'Gagal membuat file PDF.'
+        err instanceof Error ? err.message : t('Failed to generate PDF file.', 'Gagal membuat file PDF.')
       );
     } finally {
       setBusyAction(null);
@@ -152,9 +164,15 @@ export function ExportVendorModal({
         selectedVendor.paperOrientation
       );
       await syncChosenVendor(selectedVendor);
-      onNotify('success', `HTML "${effectiveFileName}" berhasil diunduh.`);
+      onNotify(
+        'success',
+        t(
+          `HTML "${effectiveFileName}" downloaded.`,
+          `HTML "${effectiveFileName}" berhasil diunduh.`
+        )
+      );
     } catch {
-      onNotify('error', 'Gagal membuat file HTML.');
+      onNotify('error', t('Failed to generate HTML file.', 'Gagal membuat file HTML.'));
     } finally {
       setBusyAction(null);
     }
@@ -173,11 +191,19 @@ export function ExportVendorModal({
         activeAccountName
       );
       await syncChosenVendor(selectedVendor);
-      onNotify('success', `Excel (.xlsx) "${effectiveFileName}" berhasil diunduh.`);
+      onNotify(
+        'success',
+        t(
+          `Excel (.xlsx) "${effectiveFileName}" downloaded.`,
+          `Excel (.xlsx) "${effectiveFileName}" berhasil diunduh.`
+        )
+      );
     } catch (err) {
       onNotify(
         'error',
-        err instanceof Error ? err.message : 'Gagal membuat file Excel.'
+        err instanceof Error
+          ? err.message
+          : t('Failed to generate Excel file.', 'Gagal membuat file Excel.')
       );
     } finally {
       setBusyAction(null);
@@ -211,165 +237,183 @@ export function ExportVendorModal({
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div>
-            <h2
-              id="export-vendor-modal-title"
-              className="font-display text-base font-semibold text-slate-900"
-            >
-              Ekspor Laporan Aktivitas
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {(() => {
-                const holidayCount = activitiesToExport.filter((a) => a.isHoliday).length;
-                return (
-                  <>
-                    {activitiesToExport.length} baris milik {activeAccountName}
-                    {holidayCount > 0 ? ` (termasuk ${holidayCount} hari libur)` : ''} siap diekspor sesuai template vendor.
-                  </>
-                );
-              })()}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            aria-label="Tutup"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSave} className="overflow-y-auto p-6 space-y-5">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">
-              Pilih Template Vendor
-            </label>
-            <div
-              data-tour="export-vendor-list"
-              className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
-            >
-              {vendorProfiles.map((vendor) => {
-                const isSelected = vendor.id === selectedVendor?.id;
-                const tpl = ensureSheetTemplate(vendor);
-                const thumb = tpl.images[0]?.dataUrl || vendor.logoDataUrl;
-
-                return (
-                  <button
-                    key={vendor.id}
-                    type="button"
-                    onClick={() => handleSelectVendor(vendor)}
-                    className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
-                      isSelected
-                        ? 'border-blue-600 bg-blue-50/70'
-                        : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    {thumb ? (
-                      <img
-                        src={thumb}
-                        alt={vendor.vendorName}
-                        referrerPolicy="no-referrer"
-                        className="h-9 w-9 rounded border border-slate-200 bg-white object-contain p-0.5 shrink-0"
-                      />
-                    ) : (
-                      <div className="h-9 w-9 rounded border border-slate-200 bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
-                        {vendor.vendorName.slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
-
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className={`text-xs font-semibold truncate ${
-                          isSelected ? 'text-blue-900' : 'text-slate-900'
-                        }`}
-                      >
-                        {vendor.vendorName}
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono tabular-nums truncate">
-                        {tpl.colWidths.length} kolom ·{' '}
-                        {vendor.paperOrientation === 'landscape' ? 'Landscape' : 'Portrait'}
-                      </div>
-                    </div>
-
-                    {isSelected && <Check className="h-4 w-4 text-blue-600 shrink-0" />}
-                  </button>
-                );
-              })}
+              <h2
+                id="export-vendor-modal-title"
+                className="font-display text-base font-semibold text-slate-900"
+              >
+                {t('Export Activity Report', 'Ekspor Laporan Aktivitas')}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {(() => {
+                  const holidayCount = activitiesToExport.filter((a) => a.isHoliday).length;
+                  return t(
+                    `${activitiesToExport.length} rows for ${activeAccountName}${
+                      holidayCount > 0 ? ` (including ${holidayCount} holidays)` : ''
+                    } ready to export with the selected vendor template.`,
+                    `${activitiesToExport.length} baris untuk ${activeAccountName}${
+                      holidayCount > 0 ? ` (termasuk ${holidayCount} hari libur)` : ''
+                    } siap diekspor dengan template vendor pilihan.`
+                  );
+                })()}
+              </p>
             </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-200">
-            <label
-              htmlFor="export-file-name-input"
-              className="block text-xs font-semibold text-slate-700 mb-1.5"
-            >
-              File Name
-            </label>
-            <input
-              id="export-file-name-input"
-              type="text"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              placeholder="Masukkan nama file laporan..."
-              required
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              disabled={busyAction !== null}
-              className="px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+              className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              aria-label={t('Close', 'Tutup')}
             >
-              Batalkan
+              <X className="h-4 w-4" />
             </button>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                data-tour="export-download-pdf"
-                onClick={handleDownloadPdf}
-                disabled={busyAction !== null || !selectedVendor}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
-              >
-                <FileDown className="h-3.5 w-3.5 text-slate-600" />
-                <span>{busyAction === 'pdf' ? 'Membuat PDF...' : 'Download PDF'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDownloadHtml}
-                disabled={busyAction !== null || !selectedVendor}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
-              >
-                <FileCode2 className="h-3.5 w-3.5 text-slate-600" />
-                <span>{busyAction === 'html' ? 'Menyiapkan...' : 'HTML'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDownloadExcel}
-                disabled={busyAction !== null || !selectedVendor}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                <span>{busyAction === 'excel' ? 'Membuat Excel...' : 'Excel'}</span>
-              </button>
-
-              <button
-                type="submit"
-                disabled={busyAction !== null || !selectedVendor}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
-              >
-                <BookmarkCheck className="h-3.5 w-3.5" />
-                <span>{busyAction === 'save' ? 'Menyimpan...' : 'Simpan'}</span>
-              </button>
-            </div>
           </div>
-        </form>
+
+          <form onSubmit={handleSave} className="overflow-y-auto p-6 space-y-5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-2">
+                {t('Select Vendor Template', 'Pilih Template Vendor')}
+              </label>
+              <div
+                data-tour="export-vendor-list"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+              >
+                {vendorProfiles.map((vendor) => {
+                  const isSelected = vendor.id === selectedVendor?.id;
+                  const tpl = ensureSheetTemplate(vendor);
+                  const thumb = tpl.images[0]?.dataUrl || vendor.logoDataUrl;
+
+                  return (
+                    <button
+                      key={vendor.id}
+                      type="button"
+                      onClick={() => handleSelectVendor(vendor)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
+                        isSelected
+                          ? 'border-blue-600 bg-blue-50/70'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt={vendor.vendorName}
+                          referrerPolicy="no-referrer"
+                          className="h-9 w-9 rounded border border-slate-200 bg-white object-contain p-0.5 shrink-0"
+                        />
+                      ) : (
+                        <div className="h-9 w-9 rounded border border-slate-200 bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">
+                          {vendor.vendorName.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`text-xs font-semibold truncate ${
+                            isSelected ? 'text-blue-900' : 'text-slate-900'
+                          }`}
+                        >
+                          {vendor.vendorName}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono tabular-nums truncate">
+                          {tpl.colWidths.length} {t('cols', 'kolom')} ·{' '}
+                          {vendor.paperOrientation === 'landscape'
+                            ? t('Landscape', 'Lanskap')
+                            : t('Portrait', 'Potret')}
+                        </div>
+                      </div>
+
+                      {isSelected && <Check className="h-4 w-4 text-blue-600 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200">
+              <label
+                htmlFor="export-file-name-input"
+                className="block text-xs font-semibold text-slate-700 mb-1.5"
+              >
+                {t('File Name', 'Nama File')}
+              </label>
+              <input
+                id="export-file-name-input"
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                placeholder={t('Enter report file name...', 'Masukkan nama file laporan...')}
+                required
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2.5 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={busyAction !== null}
+                className="px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+              >
+                {t('Cancel', 'Batal')}
+              </button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  data-tour="export-download-pdf"
+                  onClick={handleDownloadPdf}
+                  disabled={busyAction !== null || !selectedVendor}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+                >
+                  <FileDown className="h-3.5 w-3.5 text-slate-600" />
+                  <span>
+                    {busyAction === 'pdf'
+                      ? t('Creating PDF...', 'Membuat PDF...')
+                      : t('Download PDF', 'Unduh PDF')}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadHtml}
+                  disabled={busyAction !== null || !selectedVendor}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+                >
+                  <FileCode2 className="h-3.5 w-3.5 text-slate-600" />
+                  <span>
+                    {busyAction === 'html' ? t('Preparing...', 'Menyiapkan...') : 'HTML'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadExcel}
+                  disabled={busyAction !== null || !selectedVendor}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>
+                    {busyAction === 'excel'
+                      ? t('Creating Excel...', 'Membuat Excel...')
+                      : 'Excel'}
+                  </span>
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={busyAction !== null || !selectedVendor}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+                >
+                  <BookmarkCheck className="h-3.5 w-3.5" />
+                  <span>
+                    {busyAction === 'save'
+                      ? t('Saving...', 'Menyimpan...')
+                      : t('Save', 'Simpan')}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
   );
 }

@@ -22,6 +22,7 @@ import {
   formatDurationShort,
   getTodayIsoDate,
 } from '../lib/formatters';
+import { useLanguage } from '../lib/i18n';
 import { extractCustomKeysFromProfile } from '../lib/sheetTemplate';
 import type {
   ActivityEntry,
@@ -101,6 +102,7 @@ export function ActivityModal({
   onClose,
   onSave,
 }: ActivityModalProps) {
+  const { t } = useLanguage();
   const activityRef = useRef<HTMLTextAreaElement>(null);
 
   const [date, setDate] = useState(getTodayIsoDate());
@@ -493,11 +495,11 @@ export function ActivityModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) {
-      setError('Tanggal wajib diisi.');
+      setError(t('Date is required.', 'Tanggal wajib diisi.'));
       return;
     }
     if (!isHoliday && !activity.trim()) {
-      setError('Isi activity tidak boleh kosong.');
+      setError(t('Activity cannot be empty.', 'Aktivitas tidak boleh kosong.'));
       return;
     }
 
@@ -538,7 +540,7 @@ export function ActivityModal({
         activityFormat: hasFormat ? activityFormat : undefined,
         remark: trimmedActivity,
         status: status.trim(),
-        pic: initialEntry?.pic || defaultPicName || 'Akun Saya',
+        pic: initialEntry?.pic || defaultPicName || t('My Account', 'Akun Saya'),
         isHoliday,
         rowColor: isHoliday ? '#A6A6A6' : undefined,
         attAbsenFlag: isHoliday
@@ -555,7 +557,12 @@ export function ActivityModal({
         onClose();
       }
     } catch {
-      setError('Gagal menyimpan ke IndexedDB. Coba lagi.');
+      setError(
+        t(
+          'Failed to save changes. Please try again.',
+          'Gagal menyimpan perubahan. Silakan coba lagi.'
+        )
+      );
     } finally {
       setSaving(false);
     }
@@ -575,17 +582,20 @@ export function ActivityModal({
               id="activity-modal-title"
               className="font-display text-base font-semibold text-slate-900"
             >
-              {initialEntry ? 'Edit Activity' : 'Tambah Activity'}
+              {initialEntry
+                ? t('Edit Activity', 'Ubah Aktivitas')
+                : t('Add Activity', 'Tambah Aktivitas')}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Akun: {initialEntry?.pic || defaultPicName || 'Akun Saya'}
+              {t('Account:', 'Akun:')}{' '}
+              {initialEntry?.pic || defaultPicName || t('My Account', 'Akun Saya')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            aria-label="Tutup"
+            aria-label={t('Close', 'Tutup')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -598,10 +608,10 @@ export function ActivityModal({
             </div>
           )}
 
-          {/* Row 1: Tanggal */}
+          {/* Row 1: Date */}
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">
-              Tanggal
+              {t('Date', 'Tanggal')}
             </label>
             <SingleDatePicker
               value={date}
@@ -611,36 +621,36 @@ export function ActivityModal({
             />
           </div>
 
-          {/* Row 2: Jam Kerja */}
+          {/* Row 2: Work Hours */}
           <div>
             <div className="flex items-center justify-between gap-2 mb-1">
               <label className="block text-xs font-medium text-slate-700">
-                Jam Kerja
+                {t('Work Hours', 'Jam Kerja')}
               </label>
               <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-[10px] font-mono font-medium text-slate-600 tabular-nums">
-                Durasi {formatDurationShort(durationMinutes)}
+                {t('Duration', 'Durasi')} {formatDurationShort(durationMinutes)}
               </span>
             </div>
 
             <div className="flex items-center gap-2">
               <TimePickerField
-                label="Mulai"
+                label={t('Start', 'Mulai')}
                 value={startTime}
                 onChange={(val) => {
                   setTimeTouched(true);
                   setStartTime(val);
                 }}
-                ariaLabel="Jam mulai"
+                ariaLabel={t('Start time', 'Jam mulai')}
               />
               <ArrowRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               <TimePickerField
-                label="Selesai"
+                label={t('End', 'Selesai')}
                 value={endTime}
                 onChange={(val) => {
                   setTimeTouched(true);
                   setEndTime(val);
                 }}
-                ariaLabel="Jam selesai"
+                ariaLabel={t('End time', 'Jam selesai')}
               />
             </div>
           </div>
@@ -665,7 +675,7 @@ export function ActivityModal({
               }}
               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
             />
-            <span>Tandai sebagai hari libur</span>
+            <span>{t('Mark as holiday', 'Tandai sebagai hari libur')}</span>
           </label>
 
           {sameDateExisting && !sameDateExisting.isHoliday && (
@@ -678,16 +688,30 @@ export function ActivityModal({
             >
               {sameDateExisting.activity.trim() ? (
                 <>
-                  Tanggal ini sudah memiliki aktivitas tersimpan. Saat menekan{' '}
-                  <span className="font-semibold">Simpan</span>, Anda akan diminta konfirmasi apakah ingin menggabungkan (merge) aktivitasnya.
+                  {t(
+                    'This date already has a saved activity. When you click',
+                    'Tanggal ini sudah memiliki aktivitas tersimpan. Saat Anda klik'
+                  )}{' '}
+                  <span className="font-semibold">{t('Save', 'Simpan')}</span>
+                  {t(
+                    ', you will be asked whether you want to merge the activities.',
+                    ', Anda akan ditanya apakah ingin menggabungkan aktivitasnya.'
+                  )}
                 </>
               ) : (
                 <>
-                  Tanggal ini sudah memiliki data check-in/out DigiHC (
+                  {t(
+                    'This date already has DigiHC check-in/out data (',
+                    'Tanggal ini sudah memiliki data masuk/pulang DigiHC ('
+                  )}
                   <span className="font-mono font-semibold">
-                    {sameDateExisting.startTime || '-'} s/d {sameDateExisting.endTime || 'Belum Check-Out'}
+                    {sameDateExisting.startTime || '-'} –{' '}
+                    {sameDateExisting.endTime || t('Not Checked Out', 'Belum Check-Out')}
                   </span>
-                  ). Isi aktivitas akan digabungkan ke tanggal ini.
+                  {t(
+                    '). Your activity will be merged into this date.',
+                    '). Aktivitas Anda akan digabungkan ke tanggal ini.'
+                  )}
                 </>
               )}
             </div>
@@ -697,17 +721,17 @@ export function ActivityModal({
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
               <label className="block text-xs font-medium text-slate-700">
-                Activity{' '}
+                {t('Activity', 'Aktivitas')}{' '}
                 {isHoliday ? (
                   <span className="text-[11px] font-normal text-slate-400">
-                    (opsional untuk hari libur)
+                    {t('(optional for holidays)', '(opsional untuk hari libur)')}
                   </span>
                 ) : (
                   <span className="text-red-500">*</span>
                 )}
               </label>
               <span className="text-[11px] text-slate-400">
-                Format teks & daftar poin
+                {t('Text formatting & lists', 'Format teks & daftar')}
               </span>
             </div>
 
@@ -719,8 +743,8 @@ export function ActivityModal({
                   onClick={() =>
                     setActivityFormat((prev) => ({ ...prev, bold: !prev.bold }))
                   }
-                  title="Tebal (Bold)"
-                  aria-label="Tebal"
+                  title={t('Bold', 'Tebal')}
+                  aria-label={t('Bold', 'Tebal')}
                   className={`p-1.5 rounded text-xs transition-colors ${
                     activityFormat.bold
                       ? 'bg-slate-900 text-white'
@@ -734,8 +758,8 @@ export function ActivityModal({
                   onClick={() =>
                     setActivityFormat((prev) => ({ ...prev, italic: !prev.italic }))
                   }
-                  title="Miring (Italic)"
-                  aria-label="Miring"
+                  title={t('Italic', 'Miring')}
+                  aria-label={t('Italic', 'Miring')}
                   className={`p-1.5 rounded text-xs transition-colors ${
                     activityFormat.italic
                       ? 'bg-slate-900 text-white'
@@ -749,9 +773,9 @@ export function ActivityModal({
 
                 {(
                   [
-                    { value: 'left', icon: AlignLeft, label: 'Rata Kiri' },
-                    { value: 'center', icon: AlignCenter, label: 'Rata Tengah' },
-                    { value: 'right', icon: AlignRight, label: 'Rata Kanan' },
+                    { value: 'left', icon: AlignLeft, label: t('Align Left', 'Rata Kiri') },
+                    { value: 'center', icon: AlignCenter, label: t('Align Center', 'Rata Tengah') },
+                    { value: 'right', icon: AlignRight, label: t('Align Right', 'Rata Kanan') },
                   ] as { value: ColumnAlign; icon: typeof AlignLeft; label: string }[]
                 ).map((item) => {
                   const Icon = item.icon;
@@ -781,27 +805,30 @@ export function ActivityModal({
                 <button
                   type="button"
                   onClick={() => applyListFormatting('bullet')}
-                  title="Jadikan daftar poin (•)"
+                  title={t('Bullet list (•)', 'Daftar poin (•)')}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-slate-700 hover:bg-slate-200/70 transition-colors"
                 >
                   <List className="h-3.5 w-3.5" />
-                  <span>Point</span>
+                  <span>{t('Bullet', 'Poin')}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => applyListFormatting('number')}
-                  title="Jadikan daftar bernomor (1. 2. 3.)"
+                  title={t('Numbered list (1. 2. 3.)', 'Daftar bernomor (1. 2. 3.)')}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-slate-700 hover:bg-slate-200/70 transition-colors"
                 >
                   <ListOrdered className="h-3.5 w-3.5" />
-                  <span>Nomor</span>
+                  <span>{t('Number', 'Nomor')}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleCycleCase}
-                  title="Ubah format huruf (Kapital Awal / HURUF BESAR / huruf kecil)"
+                  title={t(
+                    'Change text case (Title Case / UPPERCASE / lowercase)',
+                    'Ubah kapitalisasi teks (Title Case / HURUF BESAR / huruf kecil)'
+                  )}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-slate-700 hover:bg-slate-200/70 transition-colors"
                 >
                   <CaseSensitive className="h-3.5 w-3.5" />
@@ -815,7 +842,10 @@ export function ActivityModal({
                 value={activity}
                 onChange={(e) => setActivity(e.target.value)}
                 onKeyDown={handleActivityKeyDown}
-                placeholder="Tulis aktivitas kerja hari ini... (klik Point untuk membuat daftar bullet)"
+                placeholder={t(
+                  "Write today's work activity... (click Bullet to create a bullet list)",
+                  'Tulis aktivitas kerja hari ini... (klik Poin untuk membuat daftar poin)'
+                )}
                 style={{
                   textAlign: activityFormat.align ?? 'left',
                   fontWeight: activityFormat.bold ? 700 : 400,
@@ -827,7 +857,7 @@ export function ActivityModal({
             </div>
           </div>
 
-          {/* Detail Tambahan & Manual Key-Value Details */}
+          {/* Extra Details & Manual Key-Value Details */}
           <div className="pt-1">
             <button
               type="button"
@@ -839,7 +869,12 @@ export function ActivityModal({
               ) : (
                 <ChevronRight className="h-3.5 w-3.5" />
               )}
-              <span>Detail tambahan &amp; key kustom (opsional)</span>
+              <span>
+                {t(
+                  'Additional details & custom keys (optional)',
+                  'Detail tambahan & key kustom (opsional)'
+                )}
+              </span>
             </button>
 
             {showExtras && (
@@ -847,37 +882,37 @@ export function ActivityModal({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Project Name
+                      {t('Project Name', 'Nama Proyek')}
                     </label>
                     <input
                       type="text"
                       value={project}
                       onChange={(e) => setProject(e.target.value)}
-                      placeholder="Opsional"
+                      placeholder={t('Optional', 'Opsional')}
                       className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Project Code
+                      {t('Project Code', 'Kode Proyek')}
                     </label>
                     <input
                       type="text"
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
-                      placeholder="Opsional"
+                      placeholder={t('Optional', 'Opsional')}
                       className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Aplikasi Berdampak
+                      {t('Affected Apps', 'Aplikasi Terdampak')}
                     </label>
                     <input
                       type="text"
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
-                      placeholder="Opsional"
+                      placeholder={t('Optional', 'Opsional')}
                       className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
                     />
                   </div>
@@ -899,7 +934,10 @@ export function ActivityModal({
                               [cf.key]: e.target.value,
                             }))
                           }
-                          placeholder={`Isi ${cf.label.toLowerCase()}`}
+                          placeholder={t(
+                            `Enter ${cf.label.toLowerCase()}`,
+                            `Masukkan ${cf.label.toLowerCase()}`
+                          )}
                           className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
                         />
                       </div>
@@ -911,17 +949,26 @@ export function ActivityModal({
                 <div className="pt-2 border-t border-slate-100 space-y-2.5">
                   <div>
                     <div className="text-xs font-semibold text-slate-700">
-                      Tambah Detail Lain (Input Key Manual)
+                      {t(
+                        'Add Extra Details (Manual Key Input)',
+                        'Tambah Detail Ekstra (Input Key Manual)'
+                      )}
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Masukkan nama key beserta nilainya, atau klik <span className="font-medium text-slate-600">Simpan Key</span> agar key selalu tersedia saat tambah activity baru.
+                      {t(
+                        'Enter a key name and value, or click Save Key so the key stays available when adding new activities.',
+                        'Masukkan nama key dan nilai, atau klik Simpan Key agar key tetap tersedia saat menambah aktivitas baru.'
+                      )}
                     </p>
                   </div>
 
                   {savedCustomKeys.length > 0 && (
                     <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 space-y-1.5">
                       <div className="text-[11px] font-medium text-slate-500">
-                        Key Opsional Tersimpan ({savedCustomKeys.length})
+                        {t(
+                          `Saved Optional Keys (${savedCustomKeys.length})`,
+                          `Key Opsional Tersimpan (${savedCustomKeys.length})`
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {savedCustomKeys.map((savedKey) => {
@@ -950,8 +997,11 @@ export function ActivityModal({
                                 }}
                                 title={
                                   alreadyInRows
-                                    ? 'Key sudah aktif di form ini'
-                                    : 'Tampilkan kembali di form'
+                                    ? t(
+                                        'Key is already active in this form',
+                                        'Key sudah aktif di formulir ini'
+                                      )
+                                    : t('Add back to form', 'Tambahkan kembali ke formulir')
                                 }
                                 className={`font-medium ${
                                   alreadyInRows
@@ -964,8 +1014,14 @@ export function ActivityModal({
                               <button
                                 type="button"
                                 onClick={() => onRemoveCustomKey(savedKey)}
-                                title={`Hapus "${savedKey}" dari key tersimpan`}
-                                aria-label={`Hapus key tersimpan ${savedKey}`}
+                                title={t(
+                                  `Remove "${savedKey}" from saved keys`,
+                                  `Hapus "${savedKey}" dari daftar tersimpan`
+                                )}
+                                aria-label={t(
+                                  `Remove saved key ${savedKey}`,
+                                  `Hapus key tersimpan ${savedKey}`
+                                )}
                                 className="p-0.5 rounded text-slate-400 hover:text-red-600"
                               >
                                 <X className="h-3 w-3" />
@@ -996,7 +1052,7 @@ export function ActivityModal({
                                   )
                                 )
                               }
-                              placeholder="Nama key..."
+                              placeholder={t('Key name...', 'Nama key...')}
                               className="w-2/5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600"
                             />
                             <input
@@ -1009,13 +1065,19 @@ export function ActivityModal({
                                   )
                                 )
                               }
-                              placeholder="Isi nilai detail (opsional)..."
+                              placeholder={t(
+                                'Enter detail value (optional)...',
+                                'Masukkan nilai detail (opsional)...'
+                              )}
                               className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
                             />
                             {rowKeyTrimmed &&
                               (isSavedKey ? (
                                 <span
-                                  title="Key sudah tersimpan untuk activity berikutnya"
+                                  title={t(
+                                    'Key is saved for future activities',
+                                    'Key disimpan untuk aktivitas berikutnya'
+                                  )}
                                   className="p-1.5 rounded-lg text-blue-600 bg-blue-50"
                                 >
                                   <BookmarkCheck className="h-3.5 w-3.5" />
@@ -1024,12 +1086,20 @@ export function ActivityModal({
                                 <button
                                   type="button"
                                   onClick={() => onSaveCustomKey(rowKeyTrimmed)}
-                                  title="Simpan key ini agar muncul saat tambah activity"
-                                  aria-label={`Simpan key ${rowKeyTrimmed}`}
+                                  title={t(
+                                    'Save this key so it appears when adding activities',
+                                    'Simpan key ini agar selalu muncul saat menambah aktivitas'
+                                  )}
+                                  aria-label={t(
+                                    `Save key ${rowKeyTrimmed}`,
+                                    `Simpan key ${rowKeyTrimmed}`
+                                  )}
                                   className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white text-[11px] font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 whitespace-nowrap"
                                 >
                                   <BookmarkPlus className="h-3.5 w-3.5" />
-                                  <span className="hidden sm:inline">Simpan Key</span>
+                                  <span className="hidden sm:inline">
+                                    {t('Save Key', 'Simpan Key')}
+                                  </span>
                                 </button>
                               ))}
                             <button
@@ -1039,8 +1109,11 @@ export function ActivityModal({
                                   prev.filter((r) => r.id !== row.id)
                                 )
                               }
-                              title="Hapus dari activity ini"
-                              aria-label={`Hapus detail ${row.key}`}
+                              title={t('Remove from this activity', 'Hapus dari aktivitas ini')}
+                              aria-label={t(
+                                `Remove detail ${row.key}`,
+                                `Hapus detail ${row.key}`
+                              )}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1062,7 +1135,7 @@ export function ActivityModal({
                           handleAddManualDetail();
                         }
                       }}
-                      placeholder="Key baru (misal: Lokasi)"
+                      placeholder={t('New key (e.g. Location)', 'Key baru (mis. Lokasi)')}
                       className="sm:w-1/3 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
                     />
                     <input
@@ -1075,7 +1148,7 @@ export function ActivityModal({
                           handleAddManualDetail();
                         }
                       }}
-                      placeholder="Nilai detail (opsional)..."
+                      placeholder={t('Detail value (optional)...', 'Nilai detail (opsional)...')}
                       className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50/70 text-xs focus:bg-white focus:outline-none focus:border-blue-600"
                     />
                     <div className="flex items-center gap-1.5">
@@ -1086,17 +1159,20 @@ export function ActivityModal({
                         className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 whitespace-nowrap"
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        <span>Tambah</span>
+                        <span>{t('Add', 'Tambah')}</span>
                       </button>
                       <button
                         type="button"
                         onClick={handleSaveAndInsertKey}
                         disabled={!newKeyInput.trim()}
-                        title="Simpan key ke daftar permanen agar selalu tersedia saat tambah activity"
+                        title={t(
+                          'Save key to permanent list so it is always available when adding activities',
+                          'Simpan key secara permanen agar selalu tersedia saat menambah aktivitas'
+                        )}
                         className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-40 whitespace-nowrap"
                       >
                         <BookmarkPlus className="h-3.5 w-3.5" />
-                        <span>Simpan Key</span>
+                        <span>{t('Save Key', 'Simpan Key')}</span>
                       </button>
                     </div>
                   </div>
@@ -1111,14 +1187,18 @@ export function ActivityModal({
               onClick={onClose}
               className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
             >
-              Batal
+              {t('Cancel', 'Batal')}
             </button>
             <button
               type="submit"
               disabled={saving}
               className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap disabled:opacity-60"
             >
-              {saving ? 'Menyimpan...' : initialEntry ? 'Simpan Perubahan' : 'Simpan'}
+              {saving
+                ? t('Saving...', 'Menyimpan...')
+                : initialEntry
+                ? t('Save Changes', 'Simpan Perubahan')
+                : t('Save', 'Simpan')}
             </button>
           </div>
         </form>

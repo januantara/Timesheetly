@@ -12,6 +12,7 @@ import type {
 } from '../types';
 import { exportSheetToExcel } from './exporters';
 import { sanitizeFilename } from './formatters';
+import { getActiveLanguage, pickLang } from './i18n';
 import { cellKey, ensureSheetTemplate } from './sheetTemplate';
 
 interface ExportedVendorTemplateBundle {
@@ -64,7 +65,7 @@ export function exportAllVendorTemplatesToJson(profiles: VendorProfile[]): void 
     profiles: normalized,
   };
   const dateTag = new Date().toISOString().slice(0, 10);
-  triggerJsonDownload(bundle, `semua-template-vendor-${dateTag}.json`);
+  triggerJsonDownload(bundle, `all-vendor-templates-${dateTag}.json`);
 }
 
 export async function exportVendorTemplateToExcel(profile: VendorProfile): Promise<void> {
@@ -72,22 +73,28 @@ export async function exportVendorTemplateToExcel(profile: VendorProfile): Promi
   await exportSheetToExcel(
     sheet,
     `template-${profile.vendorName}`,
-    profile.vendorName || 'Template Vendor',
+    profile.vendorName || 'Vendor Template',
     profile.paperOrientation,
     'Timesheetly'
   );
 }
 
 function makeUniqueVendorName(baseName: string, takenNames: Set<string>): string {
-  const cleanBase = baseName.trim() || 'Template Vendor Impor';
+  const cleanBase =
+    baseName.trim() ||
+    pickLang(
+      getActiveLanguage(),
+      'Imported Vendor Template',
+      'Template Vendor Impor'
+    );
   if (!takenNames.has(cleanBase.toLowerCase())) {
     takenNames.add(cleanBase.toLowerCase());
     return cleanBase;
   }
   let counter = 2;
-  let candidate = `${cleanBase} (Impor)`;
+  let candidate = `${cleanBase} (Import)`;
   while (takenNames.has(candidate.toLowerCase())) {
-    candidate = `${cleanBase} (Impor ${counter})`;
+    candidate = `${cleanBase} (Import ${counter})`;
     counter++;
   }
   takenNames.add(candidate.toLowerCase());
@@ -105,13 +112,13 @@ function normalizeImportedProfile(
     vendorName: makeUniqueVendorName(
       typeof raw.vendorName === 'string' && raw.vendorName.trim()
         ? raw.vendorName
-        : `Template Vendor ${index + 1}`,
+        : `Vendor Template ${index + 1}`,
       takenNames
     ),
     reportTitle:
       typeof raw.reportTitle === 'string' && raw.reportTitle.trim()
         ? raw.reportTitle
-        : 'LAPORAN AKTIVITAS HARIAN',
+        : 'DAILY ACTIVITY REPORT',
     subtitle: typeof raw.subtitle === 'string' ? raw.subtitle : '',
     logoDataUrl: typeof raw.logoDataUrl === 'string' ? raw.logoDataUrl : '',
     logoPosition:
@@ -132,11 +139,11 @@ function normalizeImportedProfile(
     preparedByLabel:
       typeof raw.preparedByLabel === 'string' && raw.preparedByLabel
         ? raw.preparedByLabel
-        : 'Disusun Oleh',
+        : 'Prepared By',
     approvedByLabel:
       typeof raw.approvedByLabel === 'string' && raw.approvedByLabel
         ? raw.approvedByLabel
-        : 'Disetujui Oleh',
+        : 'Approved By',
     columns: Array.isArray(raw.columns) ? raw.columns : [],
     sheetTemplate: raw.sheetTemplate,
     updatedAt: nowIso,
@@ -572,7 +579,13 @@ async function importFromExcelFile(
 
   const ws = workbook.worksheets[0];
   if (!ws) {
-    throw new Error('File Excel tidak memiliki worksheet.');
+    throw new Error(
+      pickLang(
+        getActiveLanguage(),
+        'Excel file does not contain any worksheet.',
+        'File Excel tidak memiliki worksheet.'
+      )
+    );
   }
 
   const themePalette = extractWorkbookThemePalette(workbook);
@@ -900,8 +913,15 @@ async function importFromExcelFile(
 
   return normalizeImportedProfile(
     {
-      vendorName: baseName || ws.name || 'Template Excel Impor',
-      reportTitle: 'LAPORAN AKTIVITAS HARIAN',
+      vendorName:
+        baseName ||
+        ws.name ||
+        pickLang(
+          getActiveLanguage(),
+          'Imported Excel Template',
+          'Template Excel Impor'
+        ),
+      reportTitle: 'DAILY ACTIVITY REPORT',
       paperOrientation: orientation,
       logoDataUrl: images[0]?.dataUrl ?? '',
       sheetTemplate,
@@ -915,6 +935,7 @@ export async function importVendorTemplatesFromFile(
   file: File,
   existingProfiles: VendorProfile[]
 ): Promise<VendorProfile[]> {
+  const lang = getActiveLanguage();
   const takenNames = new Set(
     existingProfiles.map((p) => p.vendorName.trim().toLowerCase())
   );
@@ -930,7 +951,9 @@ export async function importVendorTemplatesFromFile(
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error('Berkas JSON tidak valid atau rusak.');
+    throw new Error(
+      pickLang(lang, 'Invalid or corrupted JSON file.', 'File JSON tidak valid atau rusak.')
+    );
   }
 
   const rawList: Partial<VendorProfile>[] = [];
@@ -957,7 +980,11 @@ export async function importVendorTemplatesFromFile(
 
   if (rawList.length === 0) {
     throw new Error(
-      'Berkas tidak berisi data template vendor yang dikenali. Gunakan file .json template Timesheetly atau file .xlsx.'
+      pickLang(
+        lang,
+        'No recognized vendor template data found in this file. Please use a Timesheetly template .json or .xlsx file.',
+        'Tidak ditemukan data template vendor yang dikenali pada file ini. Gunakan file template Timesheetly .json atau .xlsx.'
+      )
     );
   }
 

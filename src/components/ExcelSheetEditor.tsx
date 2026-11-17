@@ -23,6 +23,7 @@ import {
   Trash2,
   Undo2,
 } from 'lucide-react';
+import { useLanguage } from '../lib/i18n';
 import { STARTER_LOGO_PRESETS } from '../lib/seedData';
 import {
   evaluateSheetCell,
@@ -79,13 +80,13 @@ interface SelectionRange {
 const QUICK_FILL_COLORS = ['', '#1E3A8A', '#0F766E', '#1E293B', '#2563EB'];
 const QUICK_TEXT_COLORS = ['#0F172A', '#FFFFFF', '#1E3A8A'];
 const QUICK_BORDER_COLORS = ['#0F172A', '#94A3B8', '#1E3A8A', '#DC2626'];
-const BORDER_WIDTH_PRESETS: { value: number; label: string }[] = [
-  { value: 0.5, label: 'Sangat Tipis' },
-  { value: 1, label: 'Tipis' },
-  { value: 1.5, label: 'Agak Tipis' },
-  { value: 2, label: 'Sedang' },
-  { value: 3, label: 'Tebal' },
-  { value: 4, label: 'Sangat Tebal' },
+const BORDER_WIDTH_PRESETS: { value: number; label: string; labelId: string }[] = [
+  { value: 0.5, label: 'Hairline', labelId: 'Sangat Tipis' },
+  { value: 1, label: 'Thin', labelId: 'Tipis' },
+  { value: 1.5, label: 'Light', labelId: 'Sedang Tipis' },
+  { value: 2, label: 'Medium', labelId: 'Sedang' },
+  { value: 3, label: 'Thick', labelId: 'Tebal' },
+  { value: 4, label: 'Extra Thick', labelId: 'Ekstra Tebal' },
 ];
 
 function normalizeSelection(a: CellCoord, b: CellCoord): SelectionRange {
@@ -132,7 +133,7 @@ function slugifyCustomKey(label: string): string {
     label
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '') || `kolom_${Date.now()}`
+      .replace(/^_+|_+$/g, '') || `col_${Date.now()}`
   );
 }
 
@@ -277,6 +278,7 @@ export function ExcelSheetEditor({
   onNotify,
   maxHeightClass = 'max-h-[calc(100vh-340px)] min-h-[340px]',
 }: ExcelSheetEditorProps) {
+  const { lang, t } = useLanguage();
   const imageInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const borderMenuRef = useRef<HTMLDivElement>(null);
@@ -692,7 +694,7 @@ export function ExcelSheetEditor({
 
   const handleDeleteColumn = (colIndex: number) => {
     if (sheet.colWidths.length <= 1) {
-      onNotify('error', 'Minimal harus ada 1 kolom.');
+      onNotify('error', t('At least 1 column is required.', 'Minimal 1 kolom harus ada.'));
       return;
     }
     commitChange((prev) => {
@@ -764,7 +766,7 @@ export function ExcelSheetEditor({
 
   const handleDeleteRow = (rowIndex: number) => {
     if (sheet.rowHeights.length <= 1) {
-      onNotify('error', 'Minimal harus ada 1 baris.');
+      onNotify('error', t('At least 1 row is required.', 'Minimal 1 baris harus ada.'));
       return;
     }
     commitChange((prev) => {
@@ -857,7 +859,7 @@ export function ExcelSheetEditor({
     });
   };
 
-  const addImageToSheet = (dataUrl: string, label = 'Gambar') => {
+  const addImageToSheet = (dataUrl: string, label = 'Image') => {
     const id = `img-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
     const newImg: SheetImage = {
       id,
@@ -878,7 +880,13 @@ export function ExcelSheetEditor({
 
   const handleImageFileUpload = (file: File) => {
     if (!file.type.startsWith('image/')) {
-      onNotify('error', 'Pilih file gambar PNG, JPG, WebP, atau SVG.');
+      onNotify(
+        'error',
+        t(
+          'Please select a PNG, JPG, WebP, or SVG image file.',
+          'Pilih file gambar PNG, JPG, WebP, atau SVG.'
+        )
+      );
       return;
     }
     const reader = new FileReader();
@@ -1153,23 +1161,23 @@ export function ExcelSheetEditor({
             type="button"
             onClick={handleUndo}
             disabled={!canUndo}
-            title="Urungkan (Ctrl+Z)"
-            aria-label="Undo"
+            title={t('Undo (Ctrl+Z)', 'Urungkan (Ctrl+Z)')}
+            aria-label={t('Undo', 'Urungkan')}
             className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none"
           >
             <Undo2 className="h-3.5 w-3.5" />
-            <span>Undo</span>
+            <span>{t('Undo', 'Urungkan')}</span>
           </button>
           <button
             type="button"
             onClick={handleRedo}
             disabled={!canRedo}
-            title="Ulangi (Ctrl+Y)"
-            aria-label="Redo"
+            title={t('Redo (Ctrl+Y)', 'Ulangi (Ctrl+Y)')}
+            aria-label={t('Redo', 'Ulangi')}
             className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none"
           >
             <Redo2 className="h-3.5 w-3.5" />
-            <span>Redo</span>
+            <span>{t('Redo', 'Ulangi')}</span>
           </button>
         </div>
 
@@ -1177,7 +1185,7 @@ export function ExcelSheetEditor({
           <button
             type="button"
             onClick={() => applyStyleToSelection({ bold: !activeStyle.bold })}
-            title="Tebal (Bold)"
+            title={t('Bold', 'Tebal')}
             className={`p-1.5 rounded text-xs ${
               activeStyle.bold
                 ? 'bg-slate-900 text-white'
@@ -1189,7 +1197,7 @@ export function ExcelSheetEditor({
           <button
             type="button"
             onClick={() => applyStyleToSelection({ italic: !activeStyle.italic })}
-            title="Miring (Italic)"
+            title={t('Italic', 'Miring')}
             className={`p-1.5 rounded text-xs ${
               activeStyle.italic
                 ? 'bg-slate-900 text-white'
@@ -1215,7 +1223,7 @@ export function ExcelSheetEditor({
                     }
               )
             }
-            title="Aktif/Nonaktifkan Garis Batas Sel (Border)"
+            title={t('Toggle Cell Border', 'Aktif/Nonaktifkan Border Sel')}
             className={`p-1.5 rounded text-xs ${
               activeStyle.border
                 ? 'bg-blue-600 text-white'
@@ -1231,8 +1239,11 @@ export function ExcelSheetEditor({
                 min={0.5}
                 max={12}
                 step={0.5}
-                aria-label="Ketebalan border (px)"
-                title="Ketik ukuran ketebalan border (0.5 - 12 px)"
+                aria-label={t('Border width (px)', 'Ketebalan border (px)')}
+                title={t(
+                  'Enter border thickness (0.5 - 12 px)',
+                  'Masukkan ketebalan border (0.5 - 12 px)'
+                )}
                 value={borderWidthInput}
                 onFocus={(e) => {
                   borderSessionPushedRef.current = false;
@@ -1305,8 +1316,8 @@ export function ExcelSheetEditor({
               </span>
               <button
                 type="button"
-                aria-label="Pilih preset ketebalan border"
-                title="Pilih ketebalan garis batas sel"
+                aria-label={t('Select border width preset', 'Pilih preset ketebalan border')}
+                title={t('Select cell border thickness', 'Pilih ketebalan border sel')}
                 onClick={() => {
                   setShowBorderMenu((v) => !v);
                   setShowTagMenu(false);
@@ -1325,7 +1336,7 @@ export function ExcelSheetEditor({
             {showBorderMenu && (
               <div className="absolute left-0 top-full mt-1.5 z-50 w-52 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 space-y-0.5">
                 <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                  Preset Ketebalan Border
+                  {t('Border Width Presets', 'Preset Ketebalan Border')}
                 </div>
                 {BORDER_WIDTH_PRESETS.map((preset) => {
                   const currentWidth = activeStyle.border
@@ -1364,7 +1375,9 @@ export function ExcelSheetEditor({
                             }}
                           />
                         </span>
-                        <span className="truncate">{preset.label}</span>
+                        <span className="truncate">
+                          {lang === 'id' ? preset.labelId : preset.label}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <span className="text-[11px] font-mono text-slate-400">
@@ -1400,7 +1413,7 @@ export function ExcelSheetEditor({
               );
             }}
             className="h-5 w-5 rounded border border-slate-200 cursor-pointer"
-            title="Warna garis batas sel (Border)"
+            title={t('Cell border color', 'Warna border sel')}
           />
           {QUICK_BORDER_COLORS.map((hex) => (
             <button
@@ -1415,7 +1428,7 @@ export function ExcelSheetEditor({
               }
               style={{ backgroundColor: hex }}
               className="h-3.5 w-3.5 rounded-sm border border-slate-300"
-              title={`Warna border ${hex}`}
+              title={t(`Border color ${hex}`, `Warna border ${hex}`)}
             />
           ))}
         </div>
@@ -1423,9 +1436,9 @@ export function ExcelSheetEditor({
         <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-md p-0.5">
           {(
             [
-              { value: 'left', icon: AlignLeft, label: 'Rata Kiri' },
-              { value: 'center', icon: AlignCenter, label: 'Rata Tengah' },
-              { value: 'right', icon: AlignRight, label: 'Rata Kanan' },
+              { value: 'left', icon: AlignLeft, label: t('Align Left', 'Rata Kiri') },
+              { value: 'center', icon: AlignCenter, label: t('Align Center', 'Rata Tengah') },
+              { value: 'right', icon: AlignRight, label: t('Align Right', 'Rata Kanan') },
             ] as { value: ColumnAlign; icon: typeof AlignLeft; label: string }[]
           ).map((al) => {
             const Icon = al.icon;
@@ -1454,17 +1467,17 @@ export function ExcelSheetEditor({
               {
                 value: 'top',
                 icon: AlignVerticalJustifyStart,
-                label: 'Rata Atas',
+                label: t('Align Top', 'Rata Atas'),
               },
               {
                 value: 'middle',
                 icon: AlignVerticalJustifyCenter,
-                label: 'Rata Tengah Vertikal',
+                label: t('Align Middle', 'Rata Tengah Vertikal'),
               },
               {
                 value: 'bottom',
                 icon: AlignVerticalJustifyEnd,
-                label: 'Rata Bawah',
+                label: t('Align Bottom', 'Rata Bawah'),
               },
             ] as {
               value: VerticalAlign;
@@ -1493,7 +1506,7 @@ export function ExcelSheetEditor({
         </div>
 
         <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-md px-2 py-1">
-          <span className="text-[11px] text-slate-500">Latar</span>
+          <span className="text-[11px] text-slate-500">{t('Fill', 'Latar')}</span>
           <input
             type="color"
             value={normalizeHexColor(activeStyle.bgColor, '#ffffff')}
@@ -1509,14 +1522,18 @@ export function ExcelSheetEditor({
               applyStyleToSelection({ bgColor: e.target.value }, shouldRecord);
             }}
             className="h-5 w-5 rounded border border-slate-200 cursor-pointer"
-            title="Warna latar semua sel terpilih"
+            title={t('Background color for selected cells', 'Warna latar sel terpilih')}
           />
           {QUICK_FILL_COLORS.map((hex, i) => (
             <button
               key={i}
               type="button"
               onClick={() => applyStyleToSelection({ bgColor: hex || undefined })}
-              title={hex ? `Latar ${hex}` : 'Hapus warna latar'}
+              title={
+                hex
+                  ? t(`Fill ${hex}`, `Latar ${hex}`)
+                  : t('Clear fill color', 'Hapus warna latar')
+              }
               style={{ backgroundColor: hex || '#ffffff' }}
               className="h-4 w-4 rounded-sm border border-slate-300 relative"
             >
@@ -1525,7 +1542,7 @@ export function ExcelSheetEditor({
           ))}
 
           <span className="text-slate-300 mx-0.5">|</span>
-          <span className="text-[11px] text-slate-500">Teks</span>
+          <span className="text-[11px] text-slate-500">{t('Text', 'Teks')}</span>
           <input
             type="color"
             value={normalizeHexColor(activeStyle.textColor, '#0f172a')}
@@ -1541,7 +1558,7 @@ export function ExcelSheetEditor({
               applyStyleToSelection({ textColor: e.target.value }, shouldRecord);
             }}
             className="h-5 w-5 rounded border border-slate-200 cursor-pointer"
-            title="Warna teks semua sel terpilih"
+            title={t('Text color for selected cells', 'Warna teks sel terpilih')}
           />
           {QUICK_TEXT_COLORS.map((hex) => (
             <button
@@ -1550,7 +1567,7 @@ export function ExcelSheetEditor({
               onClick={() => applyStyleToSelection({ textColor: hex })}
               style={{ backgroundColor: hex }}
               className="h-4 w-4 rounded-sm border border-slate-300"
-              title={`Teks ${hex}`}
+              title={t(`Text ${hex}`, `Teks ${hex}`)}
             />
           ))}
         </div>
@@ -1560,17 +1577,20 @@ export function ExcelSheetEditor({
           onClick={handleToggleMerge}
           disabled={!canMerge && !activeCellMerge}
           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 whitespace-nowrap"
-          title="Pilih beberapa sel (seret atau Shift+Klik) untuk menggabungkan sel"
+          title={t(
+            'Select multiple cells (drag or Shift+Click) to merge',
+            'Pilih beberapa sel (seret atau Shift+Klik) untuk gabung sel'
+          )}
         >
           {activeCellMerge ? (
             <>
               <SplitSquareHorizontal className="h-3.5 w-3.5" />
-              <span>Pisah Sel</span>
+              <span>{t('Unmerge Cells', 'Pisah Sel')}</span>
             </>
           ) : (
             <>
               <Combine className="h-3.5 w-3.5" />
-              <span>Gabung Sel</span>
+              <span>{t('Merge Cells', 'Gabung Sel')}</span>
             </>
           )}
         </button>
@@ -1595,17 +1615,29 @@ export function ExcelSheetEditor({
                 ? 'border-blue-600 bg-blue-600 text-white'
                 : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
             }`}
-            title="Pilih 1 atau lebih baris untuk diulang otomatis per catatan activity saat ekspor"
+            title={t(
+              'Select 1 or more rows to repeat per activity entry when exporting',
+              'Pilih 1 baris atau lebih untuk diulang per aktivitas saat ekspor'
+            )}
           >
             <Repeat className="h-3.5 w-3.5" />
             <span>
               {allSelectedRowsAreLoop
                 ? selection.startRow === selection.endRow
-                  ? `Baris ${selection.startRow + 1}: Loop Aktif`
-                  : `Baris ${selection.startRow + 1}-${selection.endRow + 1}: Loop Aktif`
+                  ? t(
+                      `Row ${selection.startRow + 1}: Loop Active`,
+                      `Baris ${selection.startRow + 1}: Loop Aktif`
+                    )
+                  : t(
+                      `Rows ${selection.startRow + 1}-${selection.endRow + 1}: Loop Active`,
+                      `Baris ${selection.startRow + 1}-${selection.endRow + 1}: Loop Aktif`
+                    )
                 : selection.startRow === selection.endRow
-                ? 'Jadikan Baris Loop'
-                : `Jadikan Baris ${selection.startRow + 1}-${selection.endRow + 1} Loop`}
+                ? t('Set as Loop Row', 'Jadikan Baris Loop')
+                : t(
+                    `Set Rows ${selection.startRow + 1}-${selection.endRow + 1} as Loop`,
+                    `Jadikan Baris ${selection.startRow + 1}-${selection.endRow + 1} Loop`
+                  )}
             </span>
           </button>
         )}
@@ -1620,16 +1652,19 @@ export function ExcelSheetEditor({
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
           >
             <Columns3 className="h-3.5 w-3.5 text-slate-500" />
-            <span>+ Kolom</span>
+            <span>{t('+ Col', '+ Kolom')}</span>
           </button>
           <button
             type="button"
             onClick={() => handleDeleteColumn(selection.startCol)}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium text-red-600 hover:bg-red-50 whitespace-nowrap"
-            title={`Hapus kolom ${colIndexToLetter(selection.startCol)}`}
+            title={t(
+              `Delete column ${colIndexToLetter(selection.startCol)}`,
+              `Hapus kolom ${colIndexToLetter(selection.startCol)}`
+            )}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            <span>Hapus Kolom</span>
+            <span>{t('Delete Col', 'Hapus Kolom')}</span>
           </button>
         </div>
 
@@ -1640,16 +1675,19 @@ export function ExcelSheetEditor({
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
           >
             <Rows3 className="h-3.5 w-3.5 text-slate-500" />
-            <span>+ Baris</span>
+            <span>{t('+ Row', '+ Baris')}</span>
           </button>
           <button
             type="button"
             onClick={() => handleDeleteRow(selection.startRow)}
             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium text-red-600 hover:bg-red-50 whitespace-nowrap"
-            title={`Hapus baris ${selection.startRow + 1}`}
+            title={t(
+              `Delete row ${selection.startRow + 1}`,
+              `Hapus baris ${selection.startRow + 1}`
+            )}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            <span>Hapus Baris</span>
+            <span>{t('Delete Row', 'Hapus Baris')}</span>
           </button>
         </div>
 
@@ -1668,14 +1706,19 @@ export function ExcelSheetEditor({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span>Sisipkan Data ke Sel {selectionLabel}</span>
+              <span>
+                {t(
+                  `Insert Data into Cell ${selectionLabel}`,
+                  `Sisipkan Data ke Sel ${selectionLabel}`
+                )}
+              </span>
             </button>
 
             {showTagMenu && (
               <div className="absolute left-0 top-full mt-1.5 z-50 w-80 max-h-[75vh] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl p-3 space-y-3">
                 <div>
                   <div className="text-[11px] font-semibold text-slate-500 mb-1.5">
-                    Data Activity (untuk Baris Loop)
+                    {t('Activity Data (for Loop Rows)', 'Data Aktivitas (untuk Baris Loop)')}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {ACTIVITY_DATA_TAGS.map((tag) => (
@@ -1685,7 +1728,7 @@ export function ExcelSheetEditor({
                         onClick={() => insertTokenIntoActiveCell(tag.token)}
                         className="px-2 py-1 rounded border border-slate-200 bg-slate-50 text-xs font-medium text-slate-800 hover:border-blue-400 hover:bg-blue-50"
                       >
-                        {tag.label}
+                        {lang === 'id' ? tag.labelId : tag.label}
                       </button>
                     ))}
                   </div>
@@ -1693,7 +1736,7 @@ export function ExcelSheetEditor({
 
                 <div className="pt-2 border-t border-slate-100">
                   <div className="text-[11px] font-semibold text-slate-500 mb-1.5">
-                    Info Laporan (untuk Kop / Bawah)
+                    {t('Report Info (for Header / Footer)', 'Info Laporan (untuk Header / Footer)')}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {DOCUMENT_META_TAGS.map((tag) => (
@@ -1703,7 +1746,7 @@ export function ExcelSheetEditor({
                         onClick={() => insertTokenIntoActiveCell(tag.token)}
                         className="px-2 py-1 rounded border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:border-blue-400 hover:bg-blue-50"
                       >
-                        {tag.label}
+                        {lang === 'id' ? tag.labelId : tag.label}
                       </button>
                     ))}
                   </div>
@@ -1711,7 +1754,7 @@ export function ExcelSheetEditor({
 
                 <div className="pt-2 border-t border-slate-100 space-y-1.5">
                   <div className="text-[11px] font-semibold text-slate-500">
-                    Isi Teks Otomatis (Kondisional)
+                    {t('Auto-Fill Text (Conditional)', 'Teks Otomatis (Kondisional)')}
                   </div>
                   <select
                     value={
@@ -1730,20 +1773,23 @@ export function ExcelSheetEditor({
                   >
                     {CONDITIONAL_KEY_OPTIONS.map((opt) => (
                       <option key={opt.key} value={opt.key}>
-                        {opt.label} ({opt.key})
+                        {lang === 'id' ? opt.labelId : opt.label} ({opt.key})
                       </option>
                     ))}
                     {!CONDITIONAL_KEY_OPTIONS.some(
                       (opt) => opt.key === conditionalKeyInput.trim()
-                    ) && <option value="__custom__">Key Kustom</option>}
+                    ) && <option value="__custom__">{t('Custom Key', 'Key Kustom')}</option>}
                   </select>
                   <div className="flex gap-1.5 items-center">
                     <input
                       type="text"
                       value={conditionalKeyInput}
                       onChange={(e) => setConditionalKeyInput(e.target.value)}
-                      placeholder="Key (misal: hadir, jika_ada_jam)"
-                      title="Key kondisi atau nama field"
+                      placeholder={t(
+                        'Key (e.g. present, if_has_time)',
+                        'Key (mis. jika_ada_activity)'
+                      )}
+                      title={t('Condition key or field name', 'Key kondisi atau nama field')}
                       className="flex-[1.3] min-w-0 px-2 py-1 rounded border border-slate-200 text-xs font-mono focus:outline-none focus:border-blue-600"
                     />
                     <span className="text-slate-400 text-xs font-mono">:</span>
@@ -1751,8 +1797,11 @@ export function ExcelSheetEditor({
                       type="text"
                       value={conditionalTextInput}
                       onChange={(e) => setConditionalTextInput(e.target.value)}
-                      placeholder="Nilai (P)"
-                      title="Teks yang diisi jika kondisi terpenuhi (gunakan | untuk nilai jika tidak)"
+                      placeholder={t('Value (P)', 'Nilai (P)')}
+                      title={t(
+                        'Text to show when condition matches (use | for fallback value)',
+                        'Teks yang tampil jika kondisi cocok (gunakan | untuk nilai alternatif)'
+                      )}
                       className="flex-1 min-w-0 px-2 py-1 rounded border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
                     />
                     <button
@@ -1768,7 +1817,7 @@ export function ExcelSheetEditor({
                       }}
                       className="px-2.5 py-1 rounded bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 whitespace-nowrap"
                     >
-                      Sisip
+                      {t('Insert', 'Sisipkan')}
                     </button>
                   </div>
                   <div className="text-[10px] font-mono text-slate-400 truncate">
@@ -1784,14 +1833,14 @@ export function ExcelSheetEditor({
 
                 <div className="pt-2 border-t border-slate-100">
                   <div className="text-[11px] font-semibold text-slate-500 mb-1.5">
-                    Atau Buat Data Kustom Baru
+                    {t('Or Create New Custom Field', 'Atau Buat Kolom Kustom Baru')}
                   </div>
                   <div className="flex gap-1.5">
                     <input
                       type="text"
                       value={customTagInput}
                       onChange={(e) => setCustomTagInput(e.target.value)}
-                      placeholder="Misal: No. PO"
+                      placeholder={t('e.g. PO Number', 'mis. Nomor PO')}
                       className="flex-1 min-w-0 px-2.5 py-1 rounded border border-slate-200 text-xs focus:outline-none focus:border-blue-600"
                     />
                     <button
@@ -1805,7 +1854,7 @@ export function ExcelSheetEditor({
                       }}
                       className="px-2.5 py-1 rounded bg-slate-900 text-white text-xs font-medium"
                     >
-                      Sisip
+                      {t('Insert', 'Sisipkan')}
                     </button>
                   </div>
                 </div>
@@ -1826,7 +1875,7 @@ export function ExcelSheetEditor({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 whitespace-nowrap"
           >
             <ImagePlus className="h-3.5 w-3.5 text-slate-600" />
-            <span>+ Masukkan Gambar</span>
+            <span>{t('+ Insert Image', '+ Sisipkan Gambar')}</span>
           </button>
 
           {showImageMenu && (
@@ -1836,10 +1885,12 @@ export function ExcelSheetEditor({
                 onClick={() => imageInputRef.current?.click()}
                 className="w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
               >
-                Unggah Gambar (PNG / JPG)
+                {t('Upload Image (PNG / JPG)', 'Unggah Gambar (PNG / JPG)')}
               </button>
               <div className="pt-2 border-t border-slate-100">
-                <div className="text-[11px] text-slate-500 mb-1.5">Logo Bawaan:</div>
+                <div className="text-[11px] text-slate-500 mb-1.5">
+                  {t('Default Logos:', 'Logo Bawaan:')}
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   {STARTER_LOGO_PRESETS.map((preset) => (
                     <button
@@ -1880,7 +1931,7 @@ export function ExcelSheetEditor({
         {selectedImage && (
           <div className="ml-auto flex items-center gap-2 px-2.5 py-1 rounded-md border border-blue-200 bg-blue-50/70 text-xs">
             <span className="font-medium text-blue-900">
-              Gambar ({selectedImage.widthPx}×{selectedImage.heightPx}px)
+              {t('Image', 'Gambar')} ({selectedImage.widthPx}×{selectedImage.heightPx}px)
             </span>
             <button
               type="button"
@@ -1893,7 +1944,7 @@ export function ExcelSheetEditor({
               }}
               className="text-red-600 font-medium hover:underline"
             >
-              Hapus Gambar
+              {t('Remove Image', 'Hapus Gambar')}
             </button>
           </div>
         )}
@@ -1918,7 +1969,10 @@ export function ExcelSheetEditor({
               setShowImageMenu(false);
               setShowBorderMenu(false);
             }}
-            title="Sisipkan Rumus (SUM, COUNT, COUNTIF, SUMIF)"
+            title={t(
+              'Insert Formula (SUM, COUNT, COUNTIF, SUMIF)',
+              'Sisipkan Rumus (SUM, COUNT, COUNTIF, SUMIF)'
+            )}
             className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors whitespace-nowrap ${
               showFormulaMenu
                 ? 'border-blue-600 bg-blue-50 text-blue-700'
@@ -1926,7 +1980,7 @@ export function ExcelSheetEditor({
             }`}
           >
             <Sigma className="h-3.5 w-3.5 text-blue-600" />
-            <span>Rumus</span>
+            <span>{t('Formula', 'Rumus')}</span>
             <ChevronDown
               className={`h-3 w-3 text-slate-400 transition-transform ${
                 showFormulaMenu ? 'rotate-180' : ''
@@ -1937,7 +1991,10 @@ export function ExcelSheetEditor({
           {showFormulaMenu && (
             <div className="absolute left-0 top-full mt-1.5 z-50 w-80 rounded-xl border border-slate-200 bg-white shadow-xl p-2 space-y-1">
               <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                Sisipkan Rumus ke Sel {selectionLabel}
+                {t(
+                  `Insert Formula into Cell ${selectionLabel}`,
+                  `Sisipkan Rumus ke Sel ${selectionLabel}`
+                )}
               </div>
               {(() => {
                 const colLetter = colIndexToLetter(selection.startCol);
@@ -1967,42 +2024,60 @@ export function ExcelSheetEditor({
                   {
                     name: 'IF',
                     syntax: `=IF(${ifTargetRef}<>"", "P", "")`,
-                    desc: 'Isi nilai otomatis (mis. "P") jika sel acuan berisi activity / tidak kosong',
+                    desc: t(
+                      'Auto-fill a value (e.g. "P") if the referenced cell has an activity / is not empty',
+                      'Isi nilai otomatis (mis. "P") jika sel referensi memiliki aktivitas / tidak kosong'
+                    ),
                     selStart: 4,
                     selEnd: 4 + ifTargetRef.length,
                   },
                   {
                     name: 'SUM',
                     syntax: `=SUM(${defaultRange})`,
-                    desc: 'Menjumlahkan angka atau durasi (HH:mm) pada rentang sel',
+                    desc: t(
+                      'Sum numbers or durations (HH:mm) across a cell range',
+                      'Jumlahkan angka atau durasi (HH:mm) pada rentang sel'
+                    ),
                     selStart: 5,
                     selEnd: 5 + defaultRange.length,
                   },
                   {
                     name: 'COUNT',
                     syntax: `=COUNT(${defaultRange})`,
-                    desc: 'Menghitung jumlah sel yang berisi angka atau durasi',
+                    desc: t(
+                      'Count cells containing numbers or durations',
+                      'Hitung sel yang berisi angka atau durasi'
+                    ),
                     selStart: 7,
                     selEnd: 7 + defaultRange.length,
                   },
                   {
                     name: 'COUNTIF',
-                    syntax: `=COUNTIF(${defaultRange}, "kriteria")`,
-                    desc: 'Menghitung sel yang memenuhi kondisi tertentu (mis. "PRJ-01", ">2")',
+                    syntax: `=COUNTIF(${defaultRange}, "criteria")`,
+                    desc: t(
+                      'Count cells matching a condition (e.g. "PRJ-01", ">2")',
+                      'Hitung sel yang memenuhi syarat (mis. "PRJ-01", ">2")'
+                    ),
                     selStart: 9,
                     selEnd: 9 + defaultRange.length,
                   },
                   {
                     name: 'SUMIF',
-                    syntax: `=SUMIF(${prevRange}, "kriteria", ${defaultRange})`,
-                    desc: 'Menjumlahkan nilai pada rentang hasil sesuai kriteria',
+                    syntax: `=SUMIF(${prevRange}, "criteria", ${defaultRange})`,
+                    desc: t(
+                      'Sum values in the target range that match criteria',
+                      'Jumlahkan nilai pada rentang target yang sesuai kriteria'
+                    ),
                     selStart: 7,
                     selEnd: 7 + prevRange.length,
                   },
                   {
                     name: 'COUNTA',
                     syntax: `=COUNTA(${defaultRange})`,
-                    desc: 'Menghitung seluruh sel yang tidak kosong (teks maupun angka)',
+                    desc: t(
+                      'Count all non-empty cells (text or numbers)',
+                      'Hitung semua sel tidak kosong (teks atau angka)'
+                    ),
                     selStart: 8,
                     selEnd: 8 + defaultRange.length,
                   },
@@ -2097,8 +2172,14 @@ export function ExcelSheetEditor({
           }}
           placeholder={
             mode === 'template'
-              ? 'Ketik teks, tag {{tanggal}}, atau rumus =IF(...), =SUM(...), =COUNTIF(...), =SUMIF(...)'
-              : 'Ketik teks atau rumus =IF(...), =SUM(...), =COUNT(...), =COUNTIF(...), =SUMIF(...)'
+              ? t(
+                  'Type text, {{tanggal}} tag, or formulas =IF(...), =SUM(...), =COUNTIF(...), =SUMIF(...)',
+                  'Ketik teks, tag {{tanggal}}, atau rumus =IF(...), =SUM(...), =COUNTIF(...), =SUMIF(...)'
+                )
+              : t(
+                  'Type text or formulas =IF(...), =SUM(...), =COUNT(...), =COUNTIF(...), =SUMIF(...)',
+                  'Ketik teks atau rumus =IF(...), =SUM(...), =COUNT(...), =COUNTIF(...), =SUMIF(...)'
+                )
           }
           className="flex-1 px-2.5 py-1 rounded border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:border-blue-600 resize-none leading-snug"
         />
@@ -2116,7 +2197,7 @@ export function ExcelSheetEditor({
                   ? 'border-red-200 bg-red-50 text-red-700'
                   : 'border-emerald-200 bg-emerald-50 text-emerald-700'
               }`}
-              title="Hasil evaluasi rumus saat ini"
+              title={t('Current formula evaluation result', 'Hasil evaluasi rumus saat ini')}
             >
               = {activeEval.display}
             </div>
@@ -2182,7 +2263,10 @@ export function ExcelSheetEditor({
                       handleAutoFitColumn(cIdx);
                     }}
                     className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-500/80"
-                    title="Seret untuk ubah lebar · Klik dua kali untuk sesuaikan dengan isi"
+                    title={t(
+                      'Drag to resize column · Double-click to auto-fit',
+                      'Seret untuk ubah lebar kolom · Klik ganda untuk pas otomatis'
+                    )}
                   />
                 </div>
               );
@@ -2223,8 +2307,11 @@ export function ExcelSheetEditor({
                     }`}
                     title={
                       isLoop
-                        ? 'Baris ini mengulang data activity saat ekspor'
-                        : 'Klik untuk pilih baris'
+                        ? t(
+                            'This row repeats activity data on export',
+                            'Baris ini diulang untuk setiap aktivitas saat ekspor'
+                          )
+                        : t('Click to select row', 'Klik untuk pilih baris')
                     }
                   >
                     <span>{rIdx + 1}</span>
@@ -2245,7 +2332,10 @@ export function ExcelSheetEditor({
                         handleAutoFitRow(rIdx);
                       }}
                       className="absolute left-0 right-0 bottom-0 h-2 cursor-row-resize hover:bg-blue-500/80"
-                      title="Seret untuk ubah tinggi · Klik dua kali untuk sesuaikan dengan isi"
+                      title={t(
+                        'Drag to resize row · Double-click to auto-fit',
+                        'Seret untuk ubah tinggi baris · Klik ganda untuk pas otomatis'
+                      )}
                     />
                   </div>
                 );
@@ -2478,7 +2568,10 @@ export function ExcelSheetEditor({
                               <div
                                 title={
                                   cellEval.isFormula
-                                    ? `Rumus: ${val} → ${cellEval.display}`
+                                    ? t(
+                                        `Formula: ${val} → ${cellEval.display}`,
+                                        `Rumus: ${val} → ${cellEval.display}`
+                                      )
                                     : undefined
                                 }
                                 style={{
@@ -2532,11 +2625,11 @@ export function ExcelSheetEditor({
                         ? 'ring-2 ring-blue-600 bg-white/30'
                         : 'hover:ring-1 hover:ring-blue-400'
                     }`}
-                    title="Seret gambar ke posisi manapun"
+                    title={t('Drag image to any position', 'Seret gambar ke posisi mana saja')}
                   >
                     <img
                       src={img.dataUrl}
-                      alt={img.label || 'Gambar sheet'}
+                      alt={img.label || t('Sheet image', 'Gambar sheet')}
                       referrerPolicy="no-referrer"
                       draggable={false}
                       className="w-full h-full object-contain pointer-events-none"
@@ -2559,7 +2652,7 @@ export function ExcelSheetEditor({
                           });
                         }}
                         className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 rounded-sm bg-blue-600 border-2 border-white cursor-nwse-resize shadow"
-                        title="Seret untuk ubah ukuran gambar"
+                        title={t('Drag to resize image', 'Seret untuk ubah ukuran gambar')}
                       />
                     )}
                   </div>
@@ -2572,17 +2665,23 @@ export function ExcelSheetEditor({
 
       <div className="relative z-0 rounded-b-xl px-4 py-2.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
         <span>
-          Gunakan tombol panah untuk berpindah sel · Klik dua kali atau tekan F2 untuk mengetik · Shift+Enter untuk baris baru di dalam sel · Seret sel lalu klik Gabung Sel
+          {t(
+            'Use arrow keys to navigate · Double-click or press F2 to edit · Shift+Enter for new line in cell · Drag cells then click Merge Cells',
+            'Gunakan panah untuk navigasi · Klik ganda atau F2 untuk edit · Shift+Enter untuk baris baru di sel · Seret sel lalu klik Gabung Sel'
+          )}
         </span>
         <span className="font-mono tabular-nums">
-          {sheet.images.length} gambar
+          {sheet.images.length} {t('images', 'gambar')}
           {mode === 'template' && (
             <>
               {' '}
-              · Baris loop:{' '}
+              · {t('Loop rows:', 'Baris loop:')}{' '}
               {loopRows.length > 0
-                ? `Baris ${loopRows.map((r) => r + 1).join(', ')}`
-                : 'Belum dipilih'}
+                ? t(
+                    `Row ${loopRows.map((r) => r + 1).join(', ')}`,
+                    `Baris ${loopRows.map((r) => r + 1).join(', ')}`
+                  )
+                : t('Not selected', 'Belum dipilih')}
             </>
           )}
         </span>

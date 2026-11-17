@@ -21,15 +21,16 @@ import {
 } from '../lib/exporters';
 import {
   buildDefaultTimesheetFilename,
-  formatDateIndonesian,
+  formatDateByPattern,
 } from '../lib/formatters';
+import { useLanguage } from '../lib/i18n';
 import { getSheetCellDisplayValue } from '../lib/sheetFormulas';
 import {
   cellKey,
   getCellSideBorder,
   getMergeCoveringCell,
 } from '../lib/sheetTemplate';
-import type { SavedExportReport, SheetTemplate } from '../types';
+import type { AppLanguage, SavedExportReport, SheetTemplate } from '../types';
 import { ExcelSheetEditor } from './ExcelSheetEditor';
 
 interface ExportPreviewViewProps {
@@ -43,11 +44,35 @@ interface ExportPreviewViewProps {
   onNotify: (type: 'success' | 'error', message: string) => void;
 }
 
-function formatSavedTimestamp(isoStr: string): string {
+const MONTHS_SHORT_ID = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'Mei',
+  'Jun',
+  'Jul',
+  'Agu',
+  'Sep',
+  'Okt',
+  'Nov',
+  'Des',
+];
+
+function formatSavedTimestamp(isoStr: string, lang: AppLanguage): string {
   if (!isoStr) return '-';
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return isoStr;
-  const datePart = formatDateIndonesian(isoStr.slice(0, 10));
+  const dateOnly = isoStr.slice(0, 10);
+  let datePart = formatDateByPattern(dateOnly, 'dd MMM yyyy');
+  if (lang === 'id') {
+    const parts = dateOnly.split('-');
+    if (parts.length === 3) {
+      const monthIdx = Number(parts[1]) - 1;
+      const monthLabel = MONTHS_SHORT_ID[monthIdx] ?? parts[1];
+      datePart = `${parts[2]} ${monthLabel} ${parts[0]}`;
+    }
+  }
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${datePart}, ${hh}:${mm}`;
@@ -63,6 +88,7 @@ export function ExportPreviewView({
   activeAccountName,
   onNotify,
 }: ExportPreviewViewProps) {
+  const { lang, t } = useLanguage();
   const selectedReport = activeExportId
     ? savedExports.find((item) => item.id === activeExportId) ?? null
     : null;
@@ -112,10 +138,13 @@ export function ExportPreviewView({
           <FileSpreadsheet className="h-7 w-7" />
         </div>
         <h2 className="font-display text-base font-semibold text-slate-900">
-          Belum Ada Hasil Ekspor Tersimpan
+          {t('No Saved Exports Yet', 'Belum Ada Riwayat Ekspor')}
         </h2>
         <p className="mt-1.5 max-w-md text-sm text-slate-500">
-          Klik tombol Ekspor pada halaman Timesheet lalu pilih Simpan agar hasil Excel muncul di daftar riwayat ini untuk diedit kembali.
+          {t(
+            'Click Export on the Timesheet page and choose Save so your report appears in this history list for further editing.',
+            'Klik Ekspor pada halaman Timesheet lalu pilih Simpan agar laporan muncul di riwayat ini untuk diedit lebih lanjut.'
+          )}
         </p>
         <button
           type="button"
@@ -123,7 +152,7 @@ export function ExportPreviewView({
           className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
         >
           <ClipboardList className="h-4 w-4" />
-          <span>Ke Timesheet</span>
+          <span>{t('Go to Timesheet', 'Buka Timesheet')}</span>
         </button>
       </div>
     );
@@ -136,10 +165,16 @@ export function ExportPreviewView({
         <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-base font-semibold text-slate-900">
-              Daftar Riwayat Ekspor Tersimpan ({savedExports.length})
+              {t(
+                `Saved Export History (${savedExports.length})`,
+                `Riwayat Ekspor Tersimpan (${savedExports.length})`
+              )}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Pilih salah satu kartu riwayat di bawah untuk membuka pratinjau, mengedit sel Excel, atau mengunduh ulang laporan.
+              {t(
+                'Select a report card below to open its preview, edit spreadsheet cells, or re-download the report.',
+                'Pilih kartu laporan di bawah untuk membuka pratinjau, mengedit sel spreadsheet, atau mengunduh ulang laporan.'
+              )}
             </p>
           </div>
 
@@ -149,7 +184,10 @@ export function ExportPreviewView({
               type="text"
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
-              placeholder="Cari judul, vendor, atau periode..."
+              placeholder={t(
+                'Search title, vendor, or period...',
+                'Cari judul, vendor, atau periode...'
+              )}
               className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
             />
           </div>
@@ -158,14 +196,17 @@ export function ExportPreviewView({
         {filteredHistory.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
             <p className="text-sm font-medium text-slate-700">
-              Tidak ada riwayat ekspor yang cocok dengan pencarian &ldquo;{historySearch}&rdquo;.
+              {t(
+                `No saved exports match "${historySearch}".`,
+                `Tidak ada riwayat ekspor yang cocok dengan "${historySearch}".`
+              )}
             </p>
             <button
               type="button"
               onClick={() => setHistorySearch('')}
               className="mt-3 px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
             >
-              Reset Pencarian
+              {t('Reset Search', 'Reset Pencarian')}
             </button>
           </div>
         ) : (
@@ -210,8 +251,10 @@ export function ExportPreviewView({
                             {item.vendorName}
                           </span>
                           <span aria-hidden="true">·</span>
-                          <span className="capitalize shrink-0">
-                            {item.paperOrientation}
+                          <span className="shrink-0">
+                            {item.paperOrientation === 'landscape'
+                              ? t('Landscape', 'Lanskap')
+                              : t('Portrait', 'Potret')}
                           </span>
                         </div>
                       </div>
@@ -221,7 +264,7 @@ export function ExportPreviewView({
                       <div className="flex items-center justify-between gap-2">
                         <span className="inline-flex items-center gap-1.5 text-slate-500">
                           <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                          <span>Periode</span>
+                          <span>{t('Period', 'Periode')}</span>
                         </span>
                         <span className="font-mono text-[11px] font-medium text-slate-800 truncate">
                           {item.periodLabel}
@@ -233,16 +276,17 @@ export function ExportPreviewView({
                           <span>Data</span>
                         </span>
                         <span className="font-mono text-[11px] tabular-nums text-slate-800">
-                          {item.rowCount} aktivitas · {item.sheet.colWidths.length} kolom
+                          {item.rowCount} {t('activities', 'aktivitas')} · {item.sheet.colWidths.length}{' '}
+                          {t('cols', 'kolom')}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="inline-flex items-center gap-1.5 text-slate-500">
                           <Clock className="h-3.5 w-3.5 text-slate-400" />
-                          <span>Disimpan</span>
+                          <span>{t('Saved', 'Disimpan')}</span>
                         </span>
                         <span className="font-mono text-[11px] tabular-nums text-slate-700">
-                          {formatSavedTimestamp(item.updatedAt)}
+                          {formatSavedTimestamp(item.updatedAt, lang)}
                         </span>
                       </div>
                     </div>
@@ -255,15 +299,15 @@ export function ExportPreviewView({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors whitespace-nowrap"
                     >
                       <Pencil className="h-3.5 w-3.5" />
-                      <span>Edit</span>
+                      <span>{t('Edit', 'Ubah')}</span>
                     </button>
 
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         disabled={cardDownloadingKey !== null}
-                        title="Unduh PDF"
-                        aria-label={`Unduh PDF ${item.title}`}
+                        title={t('Download PDF', 'Unduh PDF')}
+                        aria-label={`${t('Download PDF', 'Unduh PDF')} ${item.title}`}
                         onClick={async () => {
                           setCardDownloadingKey(`${item.id}-pdf`);
                           try {
@@ -272,9 +316,18 @@ export function ExportPreviewView({
                               item.title,
                               item.paperOrientation
                             );
-                            onNotify('success', `PDF "${item.title}" berhasil diunduh.`);
+                            onNotify(
+                              'success',
+                              t(
+                                `PDF "${item.title}" downloaded.`,
+                                `PDF "${item.title}" berhasil diunduh.`
+                              )
+                            );
                           } catch {
-                            onNotify('error', 'Gagal membuat file PDF.');
+                            onNotify(
+                              'error',
+                              t('Failed to generate PDF file.', 'Gagal membuat file PDF.')
+                            );
                           } finally {
                             setCardDownloadingKey(null);
                           }
@@ -291,8 +344,8 @@ export function ExportPreviewView({
                       <button
                         type="button"
                         disabled={cardDownloadingKey !== null}
-                        title="Unduh Excel (.xlsx)"
-                        aria-label={`Unduh Excel ${item.title}`}
+                        title={t('Download Excel (.xlsx)', 'Unduh Excel (.xlsx)')}
+                        aria-label={`${t('Download Excel', 'Unduh Excel')} ${item.title}`}
                         onClick={async () => {
                           setCardDownloadingKey(`${item.id}-excel`);
                           try {
@@ -305,10 +358,16 @@ export function ExportPreviewView({
                             );
                             onNotify(
                               'success',
-                              `Excel (.xlsx) "${item.title}" berhasil diunduh.`
+                              t(
+                                `Excel (.xlsx) "${item.title}" downloaded.`,
+                                `Excel (.xlsx) "${item.title}" berhasil diunduh.`
+                              )
                             );
                           } catch {
-                            onNotify('error', 'Gagal membuat file Excel.');
+                            onNotify(
+                              'error',
+                              t('Failed to generate Excel file.', 'Gagal membuat file Excel.')
+                            );
                           } finally {
                             setCardDownloadingKey(null);
                           }
@@ -325,8 +384,8 @@ export function ExportPreviewView({
                       {!isConfirmingDelete ? (
                         <button
                           type="button"
-                          title="Hapus Riwayat"
-                          aria-label={`Hapus ${item.title}`}
+                          title={t('Delete History', 'Hapus Riwayat')}
+                          aria-label={`${t('Delete', 'Hapus')} ${item.title}`}
                           onClick={() => setCardConfirmDeleteId(item.id)}
                           className="p-1.5 rounded-lg border border-slate-200 text-red-600 hover:bg-red-50"
                         >
@@ -342,14 +401,14 @@ export function ExportPreviewView({
                             }}
                             className="px-2 py-1 rounded bg-red-600 text-white text-[11px] font-medium hover:bg-red-700"
                           >
-                            Hapus
+                            {t('Delete', 'Hapus')}
                           </button>
                           <button
                             type="button"
                             onClick={() => setCardConfirmDeleteId(null)}
                             className="px-1.5 py-1 rounded border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"
                           >
-                            Batal
+                            {t('Cancel', 'Batal')}
                           </button>
                         </div>
                       )}
@@ -386,10 +445,10 @@ export function ExportPreviewView({
       await onSaveEditedExport(updated);
       setDraft(structuredClone(updated));
       setDirty(false);
-      onNotify('success', 'Perubahan hasil ekspor disimpan ke IndexedDB.');
+      onNotify('success', t('Export changes saved.', 'Perubahan ekspor berhasil disimpan.'));
       return true;
     } catch {
-      onNotify('error', 'Gagal menyimpan perubahan ekspor.');
+      onNotify('error', t('Failed to save export changes.', 'Gagal menyimpan perubahan ekspor.'));
       return false;
     } finally {
       setSaving(false);
@@ -414,11 +473,19 @@ export function ExportPreviewView({
         draft.paperOrientation,
         activeAccountName
       );
-      onNotify('success', `Excel (.xlsx) "${draft.title}" berhasil diunduh.`);
+      onNotify(
+        'success',
+        t(
+          `Excel (.xlsx) "${draft.title}" downloaded.`,
+          `Excel (.xlsx) "${draft.title}" berhasil diunduh.`
+        )
+      );
     } catch (err) {
       onNotify(
         'error',
-        err instanceof Error ? err.message : 'Gagal membuat file Excel.'
+        err instanceof Error
+          ? err.message
+          : t('Failed to generate Excel file.', 'Gagal membuat file Excel.')
       );
     } finally {
       setExportingExcel(false);
@@ -433,9 +500,9 @@ export function ExportPreviewView({
         draft.title,
         draft.paperOrientation
       );
-      onNotify('success', 'File HTML berhasil diunduh.');
+      onNotify('success', t('HTML file downloaded.', 'File HTML berhasil diunduh.'));
     } catch {
-      onNotify('error', 'Gagal membuat file HTML.');
+      onNotify('error', t('Failed to generate HTML file.', 'Gagal membuat file HTML.'));
     } finally {
       setExportingHtml(false);
     }
@@ -449,11 +516,16 @@ export function ExportPreviewView({
         draft.title,
         draft.paperOrientation
       );
-      onNotify('success', `PDF "${draft.title}" berhasil diunduh.`);
+      onNotify(
+        'success',
+        t(`PDF "${draft.title}" downloaded.`, `PDF "${draft.title}" berhasil diunduh.`)
+      );
     } catch (err) {
       onNotify(
         'error',
-        err instanceof Error ? err.message : 'Gagal membuat file PDF.'
+        err instanceof Error
+          ? err.message
+          : t('Failed to generate PDF file.', 'Gagal membuat file PDF.')
       );
     } finally {
       setExportingPdf(false);
@@ -471,11 +543,14 @@ export function ExportPreviewView({
       if (outcome === 'downloaded_pdf') {
         onNotify(
           'success',
-          'Dialog cetak diblokir pratinjau; file PDF siap cetak langsung diunduh.'
+          t(
+            'Print dialog blocked by preview; print-ready PDF downloaded directly.',
+            'Dialog cetak diblokir pratinjau; PDF siap cetak langsung diunduh.'
+          )
         );
       }
     } catch {
-      onNotify('error', 'Gagal memproses cetak laporan.');
+      onNotify('error', t('Failed to print report.', 'Gagal mencetak laporan.'));
     } finally {
       setPrintingPdf(false);
     }
@@ -503,7 +578,7 @@ export function ExportPreviewView({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Daftar Riwayat</span>
+              <span>{t('Back to History', 'Kembali ke Riwayat')}</span>
             </button>
 
             <span className="text-slate-300" aria-hidden="true">
@@ -515,7 +590,7 @@ export function ExportPreviewView({
             </span>
 
             <span className="text-xs text-slate-400 font-mono tabular-nums whitespace-nowrap">
-              {draft.periodLabel} · {draft.rowCount} baris
+              {draft.periodLabel} · {draft.rowCount} {t('rows', 'baris')}
             </span>
           </div>
 
@@ -527,7 +602,7 @@ export function ExportPreviewView({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-red-600 hover:bg-red-50 whitespace-nowrap"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                <span>Hapus</span>
+                <span>{t('Delete', 'Hapus')}</span>
               </button>
             ) : (
               <div className="flex items-center gap-1.5">
@@ -539,14 +614,14 @@ export function ExportPreviewView({
                   }}
                   className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 whitespace-nowrap"
                 >
-                  Yakin Hapus
+                  {t('Confirm Delete', 'Konfirmasi Hapus')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50"
                 >
-                  Batal
+                  {t('Cancel', 'Batal')}
                 </button>
               </div>
             )}
@@ -562,7 +637,13 @@ export function ExportPreviewView({
               }`}
             >
               <Check className="h-3.5 w-3.5" />
-              <span>{saving ? 'Menyimpan...' : dirty ? 'Simpan Perubahan' : 'Tersimpan'}</span>
+              <span>
+                {saving
+                  ? t('Saving...', 'Menyimpan...')
+                  : dirty
+                  ? t('Save Changes', 'Simpan Perubahan')
+                  : t('Saved', 'Tersimpan')}
+              </span>
             </button>
           </div>
         </div>
@@ -570,7 +651,10 @@ export function ExportPreviewView({
         {confirmBackUnsaved && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-medium text-amber-900">
-              Ada perubahan yang belum disimpan. Simpan terlebih dahulu sebelum kembali ke daftar riwayat?
+              {t(
+                'You have unsaved changes. Save before returning to history?',
+                'Ada perubahan yang belum disimpan. Simpan sebelum kembali ke riwayat?'
+              )}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -581,7 +665,7 @@ export function ExportPreviewView({
                 }}
                 className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
               >
-                Simpan & Kembali
+                {t('Save & Go Back', 'Simpan & Kembali')}
               </button>
               <button
                 type="button"
@@ -591,14 +675,14 @@ export function ExportPreviewView({
                 }}
                 className="px-3 py-1 rounded-md border border-amber-300 bg-white text-xs font-medium text-amber-900 hover:bg-amber-100"
               >
-                Kembali Tanpa Simpan
+                {t('Leave Without Saving', 'Keluar Tanpa Simpan')}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmBackUnsaved(false)}
                 className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-amber-100"
               >
-                Batal
+                {t('Cancel', 'Batal')}
               </button>
             </div>
           </div>
@@ -613,8 +697,8 @@ export function ExportPreviewView({
                 setDraft((prev) => (prev ? { ...prev, title: e.target.value } : prev));
                 setDirty(true);
               }}
-              aria-label="Judul dokumen ekspor"
-              placeholder="Judul dokumen ekspor"
+              aria-label={t('Export document title', 'Judul dokumen ekspor')}
+              placeholder={t('Export document title', 'Judul dokumen ekspor')}
               className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-600 flex-1 min-w-[220px] max-w-md"
             />
 
@@ -629,13 +713,13 @@ export function ExportPreviewView({
                     );
                     setDirty(true);
                   }}
-                  className={`px-2.5 py-1 rounded-md font-medium capitalize transition-colors ${
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
                     draft.paperOrientation === ori
                       ? 'bg-white text-slate-900 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  {ori}
+                  {ori === 'landscape' ? t('Landscape', 'Lanskap') : t('Portrait', 'Potret')}
                 </button>
               ))}
             </div>
@@ -649,7 +733,11 @@ export function ExportPreviewView({
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
             >
               <FileCode2 className="h-3.5 w-3.5 text-slate-500" />
-              <span>{exportingHtml ? 'Menyiapkan...' : 'Unduh HTML'}</span>
+              <span>
+                {exportingHtml
+                  ? t('Preparing...', 'Menyiapkan...')
+                  : t('Download HTML', 'Unduh HTML')}
+              </span>
             </button>
 
             <button
@@ -659,7 +747,11 @@ export function ExportPreviewView({
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 transition-colors whitespace-nowrap disabled:opacity-60"
             >
               <Printer className="h-3.5 w-3.5 text-slate-600" />
-              <span>{printingPdf ? 'Menyiapkan Cetak...' : 'Cetak / Print'}</span>
+              <span>
+                {printingPdf
+                  ? t('Preparing Print...', 'Menyiapkan Cetak...')
+                  : t('Print', 'Cetak')}
+              </span>
             </button>
 
             <button
@@ -669,7 +761,11 @@ export function ExportPreviewView({
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-800 hover:bg-slate-50 transition-colors whitespace-nowrap disabled:opacity-60"
             >
               <FileDown className="h-3.5 w-3.5 text-slate-600" />
-              <span>{exportingPdf ? 'Membuat PDF...' : 'Unduh PDF'}</span>
+              <span>
+                {exportingPdf
+                  ? t('Creating PDF...', 'Membuat PDF...')
+                  : t('Download PDF', 'Unduh PDF')}
+              </span>
             </button>
 
             <button
@@ -679,7 +775,11 @@ export function ExportPreviewView({
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors whitespace-nowrap disabled:opacity-60"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
-              <span>{exportingExcel ? 'Membuat Excel...' : 'Unduh Excel (.xlsx)'}</span>
+              <span>
+                {exportingExcel
+                  ? t('Creating Excel...', 'Membuat Excel...')
+                  : t('Download Excel (.xlsx)', 'Unduh Excel (.xlsx)')}
+              </span>
             </button>
           </div>
         </div>

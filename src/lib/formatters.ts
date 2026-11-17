@@ -2,6 +2,7 @@ import type {
   ActivityEntry,
   ActivityFilterState,
   ActivityStatus,
+  AppLanguage,
   ColumnConfig,
   DateDisplayFormat,
   TimeDisplayFormat,
@@ -44,34 +45,34 @@ export function formatStatusLabel(status: ActivityStatus): string {
   return trimmed || '-';
 }
 
-const MONTHS_SHORT_ID = [
+const MONTHS_SHORT_EN = [
   'Jan',
   'Feb',
   'Mar',
   'Apr',
-  'Mei',
+  'May',
   'Jun',
   'Jul',
-  'Agu',
+  'Aug',
   'Sep',
-  'Okt',
+  'Oct',
   'Nov',
-  'Des',
+  'Dec',
 ];
 
-const MONTHS_FULL_ID = [
-  'Januari',
-  'Februari',
-  'Maret',
+const MONTHS_FULL_EN = [
+  'January',
+  'February',
+  'March',
   'April',
-  'Mei',
-  'Juni',
-  'Juli',
-  'Agustus',
+  'May',
+  'June',
+  'July',
+  'August',
   'September',
-  'Oktober',
+  'October',
   'November',
-  'Desember',
+  'December',
 ];
 
 export const DATE_FORMAT_OPTIONS: {
@@ -92,10 +93,25 @@ export const TIME_FORMAT_OPTIONS: {
   label: string;
   example: string;
 }[] = [
-  { value: 'HH:mm', label: '24 Jam (HH:mm)', example: '14:30' },
-  { value: 'HH.mm', label: '24 Jam (HH.mm)', example: '14.30' },
-  { value: 'hh:mm A', label: '12 Jam (AM/PM)', example: '02:30 PM' },
+  { value: 'HH:mm', label: '24-Hour (HH:mm)', example: '14:30' },
+  { value: 'HH.mm', label: '24-Hour (HH.mm)', example: '14.30' },
+  { value: 'hh:mm A', label: '12-Hour (AM/PM)', example: '02:30 PM' },
 ];
+
+export function getTimeFormatOptions(lang: AppLanguage = 'en'): {
+  value: TimeDisplayFormat;
+  label: string;
+  example: string;
+}[] {
+  if (lang === 'id') {
+    return [
+      { value: 'HH:mm', label: '24 Jam (HH:mm)', example: '14:30' },
+      { value: 'HH.mm', label: '24 Jam (HH.mm)', example: '14.30' },
+      { value: 'hh:mm A', label: '12 Jam (AM/PM)', example: '02:30 PM' },
+    ];
+  }
+  return TIME_FORMAT_OPTIONS;
+}
 
 export function formatDateIndonesian(dateStr: string): string {
   return formatDateByPattern(dateStr, 'dd MMM yyyy');
@@ -110,8 +126,8 @@ export function formatDateByPattern(
   if (parts.length !== 3) return dateStr;
   const [y, m, d] = parts;
   const monthIdx = Number(m) - 1;
-  const shortMonth = MONTHS_SHORT_ID[monthIdx] ?? m;
-  const fullMonth = MONTHS_FULL_ID[monthIdx] ?? m;
+  const shortMonth = MONTHS_SHORT_EN[monthIdx] ?? m;
+  const fullMonth = MONTHS_FULL_EN[monthIdx] ?? m;
 
   switch (format) {
     case 'dd/mm/yyyy':
@@ -176,6 +192,20 @@ export function getIndonesianDayName(dateStr: string): string {
   const dateObj = new Date(y, m - 1, d);
   const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   return days[dateObj.getDay()] ?? '-';
+}
+
+export function getEnglishDayName(dateStr: string): string {
+  if (!dateStr) return '-';
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return '-';
+  const [y, m, d] = parts;
+  const dateObj = new Date(y, m - 1, d);
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return days[dateObj.getDay()] ?? '-';
+}
+
+export function getDayNameByLanguage(dateStr: string, lang: AppLanguage = 'en'): string {
+  return lang === 'id' ? getIndonesianDayName(dateStr) : getEnglishDayName(dateStr);
 }
 
 export function getTodayIsoDate(): string {
@@ -314,12 +344,14 @@ export function filterActivities(
     }
 
     if (query) {
-      const dayName = getIndonesianDayName(item.date);
+      const dayNameId = getIndonesianDayName(item.date);
+      const dayNameEn = getEnglishDayName(item.date);
       const customText = Object.values(item.customValues ?? {}).join(' ');
       const haystack = [
         item.date,
         formatDateByPattern(item.date, dateFormat),
-        dayName,
+        dayNameId,
+        dayNameEn,
         item.startTime,
         item.endTime,
         formatTimeRangeByPattern(item.startTime, item.endTime, timeFormat),
@@ -347,7 +379,7 @@ export function sanitizeFilename(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'laporan-aktivitas';
+    .replace(/^-+|-+$/g, '') || 'activity-report';
 }
 
 const ENGLISH_MONTH_NAMES = [

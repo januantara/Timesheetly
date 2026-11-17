@@ -52,3 +52,14 @@ export const INITIAL_VENDOR_PROFILES: VendorProfile[] = (
 }));
 
 export const INITIAL_ACTIVITIES: ActivityEntry[] = [];
+
+export const DEFAULT_ACTIVE_VENDOR_ID = 'vendor-nusantara';
+
+export function getDefaultActiveVendorId(vendors: VendorProfile[]): string {
+  return (
+    vendors.find((v) => v.id === DEFAULT_ACTIVE_VENDOR_ID)?.id ??
+    vendors.find((v) => v.vendorName.trim().toLowerCase() === 'ntt data')?.id ??
+    vendors[0]?.id ??
+    ''
+  );
+}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Clock } from 'lucide-react';
+import { useLanguage } from '../lib/i18n';
 
 interface TimePickerFieldProps {
   label: string;
@@ -50,6 +51,7 @@ export function TimePickerField({
   onChange,
   ariaLabel,
 }: TimePickerFieldProps) {
+  const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const hourListRef = useRef<HTMLDivElement>(null);
   const minuteListRef = useRef<HTMLDivElement>(null);
@@ -154,7 +156,7 @@ export function TimePickerField({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          aria-label={`Pilih ${label.toLowerCase()}`}
+          aria-label={t(`Select ${label.toLowerCase()}`, `Pilih ${label.toLowerCase()}`)}
           aria-expanded={open}
           className="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
         >
@@ -171,7 +173,7 @@ export function TimePickerField({
           <div className="grid grid-cols-2 gap-1.5">
             <div>
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1.5 pb-1 text-center">
-                Jam
+                {t('Hour', 'Jam')}
               </div>
               <div
                 ref={hourListRef}
@@ -204,7 +206,7 @@ export function TimePickerField({
 
             <div className="border-l border-slate-100 pl-1.5">
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1.5 pb-1 text-center">
-                Menit
+                {t('Minute', 'Menit')}
               </div>
               <div
                 ref={minuteListRef}

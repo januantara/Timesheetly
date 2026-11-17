@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { formatDateByPattern } from '../lib/formatters';
+import { useLanguage } from '../lib/i18n';
 import type { DateDisplayFormat } from '../types';
 
 interface DateRangePickerProps {
@@ -9,6 +10,21 @@ interface DateRangePickerProps {
   dateFormat: DateDisplayFormat;
   onChange: (startDate: string, endDate: string) => void;
 }
+
+const MONTH_NAMES_EN = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 const MONTH_NAMES_ID = [
   'Januari',
@@ -25,6 +41,7 @@ const MONTH_NAMES_ID = [
   'Desember',
 ];
 
+const WEEKDAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEKDAYS_ID = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
 function toIsoDate(year: number, monthZeroIdx: number, day: number): string {
@@ -46,8 +63,12 @@ export function DateRangePicker({
   dateFormat,
   onChange,
 }: DateRangePickerProps) {
+  const { lang, t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+
+  const monthNames = lang === 'id' ? MONTH_NAMES_ID : MONTH_NAMES_EN;
+  const weekdays = lang === 'id' ? WEEKDAYS_ID : WEEKDAYS_EN;
 
   const initialAnchor = useMemo(() => {
     const parsed = parseIsoYearMonth(startDate || endDate);
@@ -167,9 +188,9 @@ export function DateRangePicker({
         dateFormat
       )}`;
     }
-    if (startDate) return `Mulai ${formatDateByPattern(startDate, dateFormat)}`;
-    return `Hingga ${formatDateByPattern(endDate, dateFormat)}`;
-  }, [startDate, endDate, dateFormat]);
+    if (startDate) return `${t('From', 'Dari')} ${formatDateByPattern(startDate, dateFormat)}`;
+    return `${t('Until', 'Sampai')} ${formatDateByPattern(endDate, dateFormat)}`;
+  }, [startDate, endDate, dateFormat, t]);
 
   const applyQuickRange = (kind: '7days' | 'month' | 'clear') => {
     if (kind === 'clear') {
@@ -209,7 +230,7 @@ export function DateRangePicker({
             setOpen((v) => !v);
           }
         }}
-        aria-label="Pilih rentang tanggal"
+        aria-label={t('Select date range', 'Pilih rentang tanggal')}
         aria-expanded={open}
         className={`inline-flex items-center gap-2 min-w-[230px] px-3 py-1.5 rounded-lg border bg-white text-xs cursor-pointer transition-colors ${
           open
@@ -223,7 +244,7 @@ export function DateRangePicker({
             displayText ? 'text-slate-900 font-medium' : 'text-slate-400 font-sans'
           }`}
         >
-          {displayText || 'Pilih rentang tanggal...'}
+          {displayText || t('Select date range...', 'Pilih rentang tanggal...')}
         </span>
         {(startDate || endDate) && (
           <button
@@ -233,8 +254,8 @@ export function DateRangePicker({
               onChange('', '');
               setPendingStart(null);
             }}
-            aria-label="Hapus rentang tanggal"
-            title="Hapus rentang tanggal"
+            aria-label={t('Clear date range', 'Hapus rentang tanggal')}
+            title={t('Clear date range', 'Hapus rentang tanggal')}
             className="p-0.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
           >
             <X className="h-3 w-3" />
@@ -248,18 +269,18 @@ export function DateRangePicker({
             <button
               type="button"
               onClick={prevMonth}
-              aria-label="Bulan sebelumnya"
+              aria-label={t('Previous month', 'Bulan sebelumnya')}
               className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <div className="font-display text-xs font-semibold text-slate-900">
-              {MONTH_NAMES_ID[viewMonth]} {viewYear}
+              {monthNames[viewMonth]} {viewYear}
             </div>
             <button
               type="button"
               onClick={nextMonth}
-              aria-label="Bulan berikutnya"
+              aria-label={t('Next month', 'Bulan berikutnya')}
               className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
             >
               <ChevronRight className="h-4 w-4" />
@@ -268,16 +289,16 @@ export function DateRangePicker({
 
           <div className="text-[11px] text-center text-slate-500">
             {pendingStart
-              ? `Pilih tanggal akhir (mulai ${formatDateByPattern(
-                  pendingStart,
-                  dateFormat
-                )})`
-              : 'Klik tanggal awal lalu tanggal akhir'}
+              ? t(
+                  `Select end date (start ${formatDateByPattern(pendingStart, dateFormat)})`,
+                  `Pilih tanggal selesai (mulai ${formatDateByPattern(pendingStart, dateFormat)})`
+                )
+              : t('Click start date then end date', 'Klik tanggal mulai lalu tanggal selesai')}
           </div>
 
           <div>
             <div className="grid grid-cols-7 gap-0.5 mb-1">
-              {WEEKDAYS_ID.map((w) => (
+              {weekdays.map((w) => (
                 <div
                   key={w}
                   className="text-center text-[10px] font-semibold text-slate-400 py-1"
@@ -331,14 +352,14 @@ export function DateRangePicker({
                 onClick={() => applyQuickRange('7days')}
                 className="px-2 py-1 rounded border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
               >
-                7 Hari
+                {t('7 Days', '7 Hari')}
               </button>
               <button
                 type="button"
                 onClick={() => applyQuickRange('month')}
                 className="px-2 py-1 rounded border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
               >
-                Bulan Ini
+                {t('This Month', 'Bulan Ini')}
               </button>
             </div>
             <button
@@ -346,7 +367,7 @@ export function DateRangePicker({
               onClick={() => applyQuickRange('clear')}
               className="px-2 py-1 rounded text-[11px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100"
             >
-              Semua
+              {t('All', 'Semua')}
             </button>
           </div>
         </div>

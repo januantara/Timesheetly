@@ -8,6 +8,7 @@ import {
   PanelLeftOpen,
   X,
 } from 'lucide-react';
+import { useLanguage } from '../lib/i18n';
 import { ASSET_PATHS } from '../lib/seedData';
 import { ensureSheetTemplate } from '../lib/sheetTemplate';
 import type { AppView, VendorProfile } from '../types';
@@ -40,6 +41,7 @@ export function Sidebar({
   onCloseMobile,
 }: SidebarProps) {
   const [logoError, setLogoError] = useState(false);
+  const { t } = useLanguage();
 
   const navItems: {
     id: AppView;
@@ -49,19 +51,19 @@ export function Sidebar({
   }[] = [
     {
       id: 'activities',
-      label: 'Timesheet',
+      label: t('Timesheet', 'Timesheet'),
       icon: ClipboardList,
       count: activityCount,
     },
     {
       id: 'vendors',
-      label: 'Template Vendor',
+      label: t('Vendor Templates', 'Template Vendor'),
       icon: Layers,
       count: vendorCount,
     },
     {
       id: 'export',
-      label: 'Pratinjau & Ekspor',
+      label: t('Preview & Export', 'Pratinjau & Ekspor'),
       icon: FileSpreadsheet,
       count: savedExportCount,
     },
@@ -80,7 +82,7 @@ export function Sidebar({
               {!logoError ? (
                 <img
                   src={ASSET_PATHS.appLogo}
-                  alt="Logo Timesheetly"
+                  alt="Timesheetly Logo"
                   referrerPolicy="no-referrer"
                   onError={() => setLogoError(true)}
                   className="h-8 w-8 shrink-0 rounded-lg border border-slate-200 bg-white object-cover"
@@ -100,8 +102,16 @@ export function Sidebar({
           <button
             type="button"
             onClick={onToggleCollapse}
-            title={isCollapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
-            aria-label={isCollapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+            title={
+              isCollapsed
+                ? t('Expand sidebar', 'Lebarkan sidebar')
+                : t('Collapse sidebar', 'Kecilkan sidebar')
+            }
+            aria-label={
+              isCollapsed
+                ? t('Expand sidebar', 'Lebarkan sidebar')
+                : t('Collapse sidebar', 'Kecilkan sidebar')
+            }
             className="hidden lg:inline-flex p-1.5 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
           >
             {isCollapsed ? (
@@ -116,13 +126,13 @@ export function Sidebar({
             type="button"
             onClick={onCloseMobile}
             className="lg:hidden p-1.5 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-            aria-label="Tutup navigasi"
+            aria-label={t('Close navigation', 'Tutup navigasi')}
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="p-2.5 space-y-1" aria-label="Menu Utama">
+        <nav className="p-2.5 space-y-1" aria-label={t('Main Menu', 'Menu Utama')}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = currentView === item.id;
@@ -175,7 +185,7 @@ export function Sidebar({
               return (
                 <div
                   className="mx-2.5 mt-3 p-1.5 rounded-lg border border-slate-200 bg-slate-50 flex justify-center"
-                  title={`Profil aktif: ${activeVendor.vendorName}`}
+                  title={`${t('Active vendor', 'Vendor aktif')}: ${activeVendor.vendorName}`}
                 >
                   {logoUrl ? (
                     <img
@@ -195,7 +205,7 @@ export function Sidebar({
             return (
               <div className="mx-2.5 mt-4 p-3 rounded-lg border border-slate-200 bg-slate-50/70">
                 <div className="text-xs font-medium text-slate-500 mb-2">
-                  Vendor Aktif
+                  {t('Active Vendor', 'Vendor Aktif')}
                 </div>
                 <div className="flex items-center gap-2.5">
                   {logoUrl ? (
@@ -215,7 +225,8 @@ export function Sidebar({
                       {activeVendor.vendorName}
                     </div>
                     <div className="text-[11px] text-slate-500 font-mono tabular-nums">
-                      {tpl.colWidths.length} kolom × {tpl.rowHeights.length} baris
+                      {tpl.colWidths.length} {t('cols', 'kolom')} × {tpl.rowHeights.length}{' '}
+                      {t('rows', 'baris')}
                     </div>
                   </div>
                 </div>
@@ -227,7 +238,7 @@ export function Sidebar({
       <div className="p-2.5 border-t border-slate-200 space-y-2">
         <button
           type="button"
-          title={isCollapsed ? 'Data & Cadangan' : undefined}
+          title={isCollapsed ? t('Data & Backup', 'Data & Cadangan') : undefined}
           onClick={() => {
             onOpenBackup();
             onCloseMobile();
@@ -237,14 +248,11 @@ export function Sidebar({
           }`}
         >
           <Database className="h-4 w-4 text-slate-400 shrink-0" />
-          {!isCollapsed && <span>Data & Cadangan</span>}
+          {!isCollapsed && <span>{t('Data & Backup', 'Data & Cadangan')}</span>}
         </button>
         {!isCollapsed && (
-          <div className="px-3 space-y-0.5 text-[11px] text-slate-400">
-            <div>Tersimpan di IndexedDB</div>
-            <div className="text-slate-500 font-medium">
-              Copyright © {new Date().getFullYear()} by Januantara
-            </div>
+          <div className="px-3 text-[11px] text-slate-500 font-medium">
+            Copyright © {new Date().getFullYear()} by Januantara
           </div>
         )}
       </div>
