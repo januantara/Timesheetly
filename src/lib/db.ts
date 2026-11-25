@@ -262,11 +262,23 @@ function removeSheetColumn(sheet: NonNullable<VendorProfile['sheetTemplate']>, c
     })
     .filter((m) => m.endRow > m.startRow || m.endCol > m.startCol);
 
+  const loopRanges = Array.isArray(sheet.loopRanges)
+    ? sheet.loopRanges
+        .filter((lr) => !(lr.startCol === colToRemove && lr.endCol === colToRemove))
+        .map((lr) => ({
+          ...lr,
+          startCol: lr.startCol > colToRemove ? lr.startCol - 1 : lr.startCol,
+          endCol: lr.endCol >= colToRemove ? lr.endCol - 1 : lr.endCol,
+        }))
+        .filter((lr) => lr.endCol >= lr.startCol)
+    : undefined;
+
   return {
     ...sheet,
     colWidths,
     cells,
     merges,
+    ...(loopRanges !== undefined ? { loopRanges } : {}),
   };
 }
 

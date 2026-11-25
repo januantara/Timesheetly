@@ -173,6 +173,9 @@ function normalizeImportedProfile(
         : materializedSheet.dataRowIndex !== null && materializedSheet.dataRowIndex !== undefined
         ? [materializedSheet.dataRowIndex]
         : [],
+      ...(Array.isArray(materializedSheet.loopRanges)
+        ? { loopRanges: materializedSheet.loopRanges }
+        : {}),
     },
   };
 }

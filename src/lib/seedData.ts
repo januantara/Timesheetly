@@ -4,7 +4,7 @@ import logoNusantaraImg from '../assets/images/logo_vendor_nusantara_17946556557
 import logoCakrawalaImg from '../assets/images/logo_vendor_cakrawala_1794655656801.jpg';
 import logoMandalaImg from '../assets/images/logo_vendor_mandala_1794655656753.jpg';
 import profileDefaultImg from '../assets/images/profile-default.jpg';
-import appLogoImg from '../assets/images/timesheetly_logo_1794796777711.jpg';
+import appLogoImg from '../assets/images/timesheetly-logo.png';
 import type { ActivityEntry, VendorProfile } from '../types';
 
 export const ASSET_PATHS = {

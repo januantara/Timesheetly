@@ -35,13 +35,23 @@ import {
 } from '../lib/sheetFormulas';
 import {
   ACTIVITY_DATA_TAGS,
+  areRangesInLoop,
   cellKey,
   colIndexToLetter,
   CONDITIONAL_KEY_OPTIONS,
   DOCUMENT_META_TAGS,
+  formatLoopRangesLabel,
   getCellSideBorder,
+  getLoopRanges,
   getLoopRowIndices,
   getMergeCoveringCell,
+  isCellInLoopRanges,
+  shiftLoopRangesOnColDelete,
+  shiftLoopRangesOnColInsert,
+  shiftLoopRangesOnRowDelete,
+  shiftLoopRangesOnRowInsert,
+  toggleLoopCellsInRanges,
+  withLoopRanges,
   withLoopRowIndices,
 } from '../lib/sheetTemplate';
 import type {
@@ -688,7 +698,19 @@ export function ExcelSheetEditor({
         endCol: m.endCol >= atIndex ? m.endCol + 1 : m.endCol,
       }));
 
-      return { ...prev, colWidths: nextWidths, cells: nextCells, merges: nextMerges };
+      const baseNext: SheetTemplate = {
+        ...prev,
+        colWidths: nextWidths,
+        cells: nextCells,
+        merges: nextMerges,
+      };
+      if (Array.isArray(prev.loopRanges)) {
+        return withLoopRanges(
+          baseNext,
+          shiftLoopRangesOnColInsert(prev.loopRanges, atIndex)
+        );
+      }
+      return baseNext;
     });
   };
 
@@ -719,7 +741,19 @@ export function ExcelSheetEditor({
           nextMerges.push({ ...m, startCol, endCol });
         }
       }
-      return { ...prev, colWidths: nextWidths, cells: nextCells, merges: nextMerges };
+      const baseNext: SheetTemplate = {
+        ...prev,
+        colWidths: nextWidths,
+        cells: nextCells,
+        merges: nextMerges,
+      };
+      if (Array.isArray(prev.loopRanges)) {
+        return withLoopRanges(
+          baseNext,
+          shiftLoopRangesOnColDelete(prev.loopRanges, colIndex)
+        );
+      }
+      return baseNext;
     });
     setAnchorCell((curr) => ({ ...curr, col: Math.max(0, curr.col - 1) }));
     setFocusCell((curr) => ({ ...curr, col: Math.max(0, curr.col - 1) }));
@@ -748,19 +782,22 @@ export function ExcelSheetEditor({
         endRow: m.endRow >= atIndex ? m.endRow + 1 : m.endRow,
       }));
 
+      const baseNext: SheetTemplate = {
+        ...prev,
+        rowHeights: nextHeights,
+        cells: nextCells,
+        merges: nextMerges,
+      };
+      if (Array.isArray(prev.loopRanges)) {
+        return withLoopRanges(
+          baseNext,
+          shiftLoopRangesOnRowInsert(prev.loopRanges, atIndex)
+        );
+      }
       const nextLoopRows = getLoopRowIndices(prev).map((lr) =>
         lr >= atIndex ? lr + 1 : lr
       );
-
-      return withLoopRowIndices(
-        {
-          ...prev,
-          rowHeights: nextHeights,
-          cells: nextCells,
-          merges: nextMerges,
-        },
-        nextLoopRows
-      );
+      return withLoopRowIndices(baseNext, nextLoopRows);
     });
   };
 
@@ -791,19 +828,23 @@ export function ExcelSheetEditor({
           nextMerges.push({ ...m, startRow, endRow });
         }
       }
+      const baseNext: SheetTemplate = {
+        ...prev,
+        rowHeights: nextHeights,
+        cells: nextCells,
+        merges: nextMerges,
+      };
+      if (Array.isArray(prev.loopRanges)) {
+        return withLoopRanges(
+          baseNext,
+          shiftLoopRangesOnRowDelete(prev.loopRanges, rowIndex)
+        );
+      }
       const nextLoopRows = getLoopRowIndices(prev)
         .filter((lr) => lr !== rowIndex)
         .map((lr) => (lr > rowIndex ? lr - 1 : lr));
 
-      return withLoopRowIndices(
-        {
-          ...prev,
-          rowHeights: nextHeights,
-          cells: nextCells,
-          merges: nextMerges,
-        },
-        nextLoopRows
-      );
+      return withLoopRowIndices(baseNext, nextLoopRows);
     });
     setAnchorCell((curr) => ({ ...curr, row: Math.max(0, curr.row - 1) }));
     setFocusCell((curr) => ({ ...curr, row: Math.max(0, curr.row - 1) }));
@@ -1127,17 +1168,11 @@ export function ExcelSheetEditor({
   };
 
   const totalTableWidth = sheet.colWidths.reduce((s, w) => s + w, 0);
+  const loopRanges = getLoopRanges(sheet);
   const loopRows = getLoopRowIndices(sheet);
   const loopRowSet = new Set(loopRows);
-  const selectedRowSet = new Set<number>();
-  for (const rng of allSelections) {
-    for (let r = rng.startRow; r <= rng.endRow; r++) {
-      selectedRowSet.add(r);
-    }
-  }
-  const selectedRowSpan = Array.from(selectedRowSet).sort((a, b) => a - b);
-  const allSelectedRowsAreLoop =
-    selectedRowSpan.length > 0 && selectedRowSpan.every((r) => loopRowSet.has(r));
+  const allSelectedCellsAreLoop = areRangesInLoop(sheet, allSelections);
+  const loopSummaryLabel = formatLoopRangesLabel(loopRanges);
 
   const primaryRangeLabel =
     selection.startRow === selection.endRow && selection.startCol === selection.endCol
@@ -1599,44 +1634,28 @@ export function ExcelSheetEditor({
           <button
             type="button"
             onClick={() => {
-              commitChange((prev) => {
-                const current = getLoopRowIndices(prev);
-                const currSet = new Set(current);
-                if (allSelectedRowsAreLoop) {
-                  for (const r of selectedRowSpan) currSet.delete(r);
-                } else {
-                  for (const r of selectedRowSpan) currSet.add(r);
-                }
-                return withLoopRowIndices(prev, Array.from(currSet));
-              });
+              commitChange((prev) => toggleLoopCellsInRanges(prev, allSelections));
             }}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium whitespace-nowrap ${
-              allSelectedRowsAreLoop
+              allSelectedCellsAreLoop
                 ? 'border-blue-600 bg-blue-600 text-white'
                 : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
             }`}
             title={t(
-              'Select 1 or more rows to repeat per activity entry when exporting',
-              'Pilih 1 baris atau lebih untuk diulang per aktivitas saat ekspor'
+              'Loop only the selected cell(s) per activity entry when exporting',
+              'Loop hanya pada sel yang dipilih untuk setiap aktivitas saat ekspor'
             )}
           >
             <Repeat className="h-3.5 w-3.5" />
             <span>
-              {allSelectedRowsAreLoop
-                ? selection.startRow === selection.endRow
-                  ? t(
-                      `Row ${selection.startRow + 1}: Loop Active`,
-                      `Baris ${selection.startRow + 1}: Loop Aktif`
-                    )
-                  : t(
-                      `Rows ${selection.startRow + 1}-${selection.endRow + 1}: Loop Active`,
-                      `Baris ${selection.startRow + 1}-${selection.endRow + 1}: Loop Aktif`
-                    )
-                : selection.startRow === selection.endRow
-                ? t('Set as Loop Row', 'Jadikan Baris Loop')
+              {allSelectedCellsAreLoop
+                ? t(
+                    `Loop Active (${selectionLabel})`,
+                    `Loop Aktif (${selectionLabel})`
+                  )
                 : t(
-                    `Set Rows ${selection.startRow + 1}-${selection.endRow + 1} as Loop`,
-                    `Jadikan Baris ${selection.startRow + 1}-${selection.endRow + 1} Loop`
+                    `Set Loop (${selectionLabel})`,
+                    `Jadikan Loop (${selectionLabel})`
                   )}
             </span>
           </button>
@@ -2308,8 +2327,8 @@ export function ExcelSheetEditor({
                     title={
                       isLoop
                         ? t(
-                            'This row repeats activity data on export',
-                            'Baris ini diulang untuk setiap aktivitas saat ekspor'
+                            'This row contains looped cells on export',
+                            'Baris ini memiliki sel yang diulang saat ekspor'
                           )
                         : t('Click to select row', 'Klik untuk pilih baris')
                     }
@@ -2394,6 +2413,9 @@ export function ExcelSheetEditor({
                         const isEditing =
                           editingCell?.row === rIdx && editingCell?.col === cIdx;
 
+                        const isCellLoop =
+                          mode === 'template' &&
+                          isCellInLoopRanges(loopRanges, rIdx, cIdx);
                         const hasToken = mode === 'template' && /\{\{[^}]+\}\}/.test(val);
 
                         const topB = getCellSideBorder(st, 'top');
@@ -2450,7 +2472,12 @@ export function ExcelSheetEditor({
                             onDoubleClick={() => beginInlineEdit(rIdx, cIdx)}
                             style={{
                               backgroundColor:
-                                st?.bgColor || (isSelected ? '#eff6ff' : '#ffffff'),
+                                st?.bgColor ||
+                                (isSelected
+                                  ? '#eff6ff'
+                                  : isCellLoop
+                                  ? 'rgba(239, 246, 255, 0.45)'
+                                  : '#ffffff'),
                               color: cellEval.isError
                                 ? '#dc2626'
                                 : st?.textColor || '#0f172a',
@@ -2475,12 +2502,21 @@ export function ExcelSheetEditor({
                                 ? 'inset 0 0 0 2px #2563eb'
                                 : isSelected
                                 ? 'inset 0 0 0 1.5px #60a5fa'
+                                : isCellLoop
+                                ? 'inset 0 0 0 1px rgba(37, 99, 235, 0.4)'
                                 : undefined,
                             }}
                             className={`relative px-1.5 py-0.5 ${
                               isEditing ? 'overflow-visible z-30' : 'overflow-hidden'
                             }`}
                           >
+                            {isCellLoop && !isEditing && (
+                              <span
+                                aria-hidden="true"
+                                title={t('Looped cell', 'Sel loop aktif')}
+                                className="pointer-events-none absolute top-0 left-0 w-0 h-0 border-t-[6px] border-t-blue-600 border-r-[6px] border-r-transparent"
+                              />
+                            )}
                             {isEditing ? (
                               <textarea
                                 value={editBuffer}
@@ -2675,12 +2711,9 @@ export function ExcelSheetEditor({
           {mode === 'template' && (
             <>
               {' '}
-              · {t('Loop rows:', 'Baris loop:')}{' '}
-              {loopRows.length > 0
-                ? t(
-                    `Row ${loopRows.map((r) => r + 1).join(', ')}`,
-                    `Baris ${loopRows.map((r) => r + 1).join(', ')}`
-                  )
+              · {t('Loop cells:', 'Sel loop:')}{' '}
+              {loopSummaryLabel
+                ? loopSummaryLabel
                 : t('Not selected', 'Belum dipilih')}
             </>
           )}

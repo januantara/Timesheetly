@@ -63,7 +63,7 @@ export function ProfileLoginView({
                   alt="Timesheetly Logo"
                   referrerPolicy="no-referrer"
                   onError={() => setLogoError(true)}
-                  className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-white object-cover"
+                  className="h-10 w-10 shrink-0 rounded-xl object-contain"
                 />
               ) : (
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white font-display font-bold text-base">

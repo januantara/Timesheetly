@@ -5,6 +5,7 @@ import type {
   SheetCell,
   SheetCellStyle,
   SheetImage,
+  SheetLoopRange,
   SheetMergeRange,
   SheetTemplate,
   TimeDisplayFormat,
@@ -302,8 +303,314 @@ export function profileToDefaultSheetTemplate(profile: VendorProfile): SheetTemp
   };
 }
 
+function clampLoopRanges(
+  ranges: SheetLoopRange[],
+  rowCount: number,
+  colCount: number
+): SheetLoopRange[] {
+  if (rowCount <= 0 || colCount <= 0) return [];
+  const rowCols = new Map<number, Set<number>>();
+  for (const rng of ranges) {
+    const rStart = Math.max(0, Math.min(rowCount - 1, Math.min(rng.startRow, rng.endRow)));
+    const rEnd = Math.max(0, Math.min(rowCount - 1, Math.max(rng.startRow, rng.endRow)));
+    const cStart = Math.max(0, Math.min(colCount - 1, Math.min(rng.startCol, rng.endCol)));
+    const cEnd = Math.max(0, Math.min(colCount - 1, Math.max(rng.startCol, rng.endCol)));
+    if (!Number.isInteger(rStart) || !Number.isInteger(rEnd) || !Number.isInteger(cStart) || !Number.isInteger(cEnd)) {
+      continue;
+    }
+    for (let r = rStart; r <= rEnd; r++) {
+      let set = rowCols.get(r);
+      if (!set) {
+        set = new Set<number>();
+        rowCols.set(r, set);
+      }
+      for (let c = cStart; c <= cEnd; c++) {
+        set.add(c);
+      }
+    }
+  }
+
+  const perRowRanges: SheetLoopRange[] = [];
+  const sortedRows = Array.from(rowCols.keys()).sort((a, b) => a - b);
+  for (const r of sortedRows) {
+    const cols = Array.from(rowCols.get(r) ?? []).sort((a, b) => a - b);
+    if (cols.length === 0) continue;
+    let startCol = cols[0];
+    let prevCol = cols[0];
+    for (let i = 1; i < cols.length; i++) {
+      if (cols[i] === prevCol + 1) {
+        prevCol = cols[i];
+      } else {
+        perRowRanges.push({ startRow: r, endRow: r, startCol, endCol: prevCol });
+        startCol = cols[i];
+        prevCol = cols[i];
+      }
+    }
+    perRowRanges.push({ startRow: r, endRow: r, startCol, endCol: prevCol });
+  }
+
+  // Merge consecutive rows that share identical [startCol, endCol]
+  const merged: SheetLoopRange[] = [];
+  for (const seg of perRowRanges) {
+    const last = merged[merged.length - 1];
+    if (
+      last &&
+      last.endRow + 1 === seg.startRow &&
+      last.startCol === seg.startCol &&
+      last.endCol === seg.endCol
+    ) {
+      last.endRow = seg.endRow;
+    } else {
+      merged.push({ ...seg });
+    }
+  }
+  return merged;
+}
+
+export function getLoopRanges(sheet: SheetTemplate): SheetLoopRange[] {
+  const rowCount = sheet.rowHeights.length;
+  const colCount = sheet.colWidths.length;
+  if (Array.isArray(sheet.loopRanges)) {
+    return clampLoopRanges(sheet.loopRanges, rowCount, colCount);
+  }
+  const maxCol = Math.max(0, colCount - 1);
+  const legacyRows = getLoopRowIndices(sheet);
+  return clampLoopRanges(
+    legacyRows.map((r) => ({
+      startRow: r,
+      endRow: r,
+      startCol: 0,
+      endCol: maxCol,
+    })),
+    rowCount,
+    colCount
+  );
+}
+
+export function isCellInLoopRanges(
+  ranges: SheetLoopRange[],
+  row: number,
+  col: number
+): boolean {
+  return ranges.some(
+    (rng) =>
+      row >= rng.startRow &&
+      row <= rng.endRow &&
+      col >= rng.startCol &&
+      col <= rng.endCol
+  );
+}
+
+function expandRangesWithMerges(
+  sheet: SheetTemplate,
+  targetRanges: SheetLoopRange[]
+): SheetLoopRange[] {
+  const rowCount = sheet.rowHeights.length;
+  const colCount = sheet.colWidths.length;
+  const expanded: SheetLoopRange[] = [];
+  for (const rng of targetRanges) {
+    const rStart = Math.max(0, Math.min(rowCount - 1, Math.min(rng.startRow, rng.endRow)));
+    const rEnd = Math.max(0, Math.min(rowCount - 1, Math.max(rng.startRow, rng.endRow)));
+    const cStart = Math.max(0, Math.min(colCount - 1, Math.min(rng.startCol, rng.endCol)));
+    const cEnd = Math.max(0, Math.min(colCount - 1, Math.max(rng.startCol, rng.endCol)));
+    let minR = rStart;
+    let maxR = rEnd;
+    let minC = cStart;
+    let maxC = cEnd;
+    for (const m of sheet.merges) {
+      if (
+        m.endRow >= minR &&
+        m.startRow <= maxR &&
+        m.endCol >= minC &&
+        m.startCol <= maxC
+      ) {
+        minR = Math.min(minR, m.startRow);
+        maxR = Math.max(maxR, m.endRow);
+        minC = Math.min(minC, m.startCol);
+        maxC = Math.max(maxC, m.endCol);
+      }
+    }
+    expanded.push({ startRow: minR, endRow: maxR, startCol: minC, endCol: maxC });
+  }
+  return expanded;
+}
+
+export function areRangesInLoop(
+  sheet: SheetTemplate,
+  targetRanges: SheetLoopRange[]
+): boolean {
+  if (targetRanges.length === 0) return false;
+  const loopRanges = getLoopRanges(sheet);
+  if (loopRanges.length === 0) return false;
+  const expanded = expandRangesWithMerges(sheet, targetRanges);
+  for (const rng of expanded) {
+    for (let r = rng.startRow; r <= rng.endRow; r++) {
+      for (let c = rng.startCol; c <= rng.endCol; c++) {
+        if (!isCellInLoopRanges(loopRanges, r, c)) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+export function withLoopRanges(
+  sheet: SheetTemplate,
+  ranges: SheetLoopRange[]
+): SheetTemplate {
+  const normalized = clampLoopRanges(
+    ranges,
+    sheet.rowHeights.length,
+    sheet.colWidths.length
+  );
+  const rowSet = new Set<number>();
+  for (const rng of normalized) {
+    for (let r = rng.startRow; r <= rng.endRow; r++) {
+      rowSet.add(r);
+    }
+  }
+  const rowIndices = Array.from(rowSet).sort((a, b) => a - b);
+  return {
+    ...sheet,
+    loopRanges: normalized,
+    dataRowIndices: rowIndices,
+    dataRowIndex: rowIndices[0] ?? null,
+  };
+}
+
+export function toggleLoopCellsInRanges(
+  sheet: SheetTemplate,
+  targetRanges: SheetLoopRange[]
+): SheetTemplate {
+  const current = getLoopRanges(sheet);
+  const expandedTargets = expandRangesWithMerges(sheet, targetRanges);
+  const allLoop = areRangesInLoop(sheet, targetRanges);
+
+  const rowCols = new Map<number, Set<number>>();
+  for (const rng of current) {
+    for (let r = rng.startRow; r <= rng.endRow; r++) {
+      let set = rowCols.get(r);
+      if (!set) {
+        set = new Set<number>();
+        rowCols.set(r, set);
+      }
+      for (let c = rng.startCol; c <= rng.endCol; c++) {
+        set.add(c);
+      }
+    }
+  }
+
+  for (const rng of expandedTargets) {
+    for (let r = rng.startRow; r <= rng.endRow; r++) {
+      let set = rowCols.get(r);
+      if (!set && !allLoop) {
+        set = new Set<number>();
+        rowCols.set(r, set);
+      }
+      if (!set) continue;
+      for (let c = rng.startCol; c <= rng.endCol; c++) {
+        if (allLoop) {
+          set.delete(c);
+        } else {
+          set.add(c);
+        }
+      }
+      if (set.size === 0) {
+        rowCols.delete(r);
+      }
+    }
+  }
+
+  const nextRanges: SheetLoopRange[] = [];
+  for (const [r, cols] of rowCols.entries()) {
+    for (const c of cols) {
+      nextRanges.push({ startRow: r, endRow: r, startCol: c, endCol: c });
+    }
+  }
+  return withLoopRanges(sheet, nextRanges);
+}
+
+export function shiftLoopRangesOnRowInsert(
+  ranges: SheetLoopRange[],
+  atIndex: number
+): SheetLoopRange[] {
+  return ranges.map((r) => ({
+    ...r,
+    startRow: r.startRow >= atIndex ? r.startRow + 1 : r.startRow,
+    endRow: r.endRow >= atIndex ? r.endRow + 1 : r.endRow,
+  }));
+}
+
+export function shiftLoopRangesOnRowDelete(
+  ranges: SheetLoopRange[],
+  rowIndex: number
+): SheetLoopRange[] {
+  const next: SheetLoopRange[] = [];
+  for (const r of ranges) {
+    if (r.startRow === rowIndex && r.endRow === rowIndex) continue;
+    const startRow = r.startRow > rowIndex ? r.startRow - 1 : r.startRow;
+    const endRow = r.endRow >= rowIndex ? r.endRow - 1 : r.endRow;
+    if (endRow >= startRow) {
+      next.push({ ...r, startRow, endRow });
+    }
+  }
+  return next;
+}
+
+export function shiftLoopRangesOnColInsert(
+  ranges: SheetLoopRange[],
+  atIndex: number
+): SheetLoopRange[] {
+  return ranges.map((r) => ({
+    ...r,
+    startCol: r.startCol >= atIndex ? r.startCol + 1 : r.startCol,
+    endCol: r.endCol >= atIndex ? r.endCol + 1 : r.endCol,
+  }));
+}
+
+export function shiftLoopRangesOnColDelete(
+  ranges: SheetLoopRange[],
+  colIndex: number
+): SheetLoopRange[] {
+  const next: SheetLoopRange[] = [];
+  for (const r of ranges) {
+    if (r.startCol === colIndex && r.endCol === colIndex) continue;
+    const startCol = r.startCol > colIndex ? r.startCol - 1 : r.startCol;
+    const endCol = r.endCol >= colIndex ? r.endCol - 1 : r.endCol;
+    if (endCol >= startCol) {
+      next.push({ ...r, startCol, endCol });
+    }
+  }
+  return next;
+}
+
+export function formatLoopRangesLabel(ranges: SheetLoopRange[]): string {
+  return ranges
+    .map((r) =>
+      r.startRow === r.endRow && r.startCol === r.endCol
+        ? `${colIndexToLetter(r.startCol)}${r.startRow + 1}`
+        : `${colIndexToLetter(r.startCol)}${r.startRow + 1}:${colIndexToLetter(r.endCol)}${r.endRow + 1}`
+    )
+    .join(', ');
+}
+
 export function getLoopRowIndices(sheet: SheetTemplate): number[] {
   const maxRow = sheet.rowHeights.length;
+  if (Array.isArray(sheet.loopRanges)) {
+    const normalized = clampLoopRanges(
+      sheet.loopRanges,
+      maxRow,
+      sheet.colWidths.length
+    );
+    const set = new Set<number>();
+    for (const rng of normalized) {
+      for (let r = rng.startRow; r <= rng.endRow; r++) {
+        set.add(r);
+      }
+    }
+    return Array.from(set).sort((a, b) => a - b);
+  }
   const raw = Array.isArray(sheet.dataRowIndices)
     ? sheet.dataRowIndices
     : sheet.dataRowIndex !== null && sheet.dataRowIndex !== undefined
@@ -325,6 +632,7 @@ export function withLoopRowIndices(
     ...sheet,
     dataRowIndices: normalized,
     dataRowIndex: normalized[0] ?? null,
+    loopRanges: undefined,
   };
 }
 
@@ -784,6 +1092,7 @@ export function buildLoopedSheetFromTemplate(
   const tpl = ensureSheetTemplate(profile);
   const colCount = tpl.colWidths.length;
   const rowCount = tpl.rowHeights.length;
+  const loopRanges = getLoopRanges(tpl);
   const loopRows = getLoopRowIndices(tpl);
   const loopSet = new Set(loopRows);
 
@@ -807,6 +1116,7 @@ export function buildLoopedSheetFromTemplate(
     key: string;
     origRow: number;
     outRow: number;
+    isInsideLoop: boolean;
   }[] = [];
 
   let accOrigY = 0;
@@ -844,6 +1154,35 @@ export function buildLoopedSheetFromTemplate(
 
           for (let c = 0; c < colCount; c++) {
             const srcCell = tpl.cells[cellKey(br, c)];
+            const cellIsLooped = isCellInLoopRanges(loopRanges, br, c);
+
+            if (!cellIsLooped) {
+              // Cells outside the selected loop range stay only on the first row and are not repeated
+              if (idx === 0 && srcCell) {
+                const targetK = cellKey(outRow, c);
+                const resolvedValue = resolveSheetCellText(
+                  srcCell.value,
+                  profile,
+                  null,
+                  0,
+                  renderMeta
+                );
+                outCells[targetK] = {
+                  value: resolvedValue,
+                  style: srcCell.style ? { ...srcCell.style } : undefined,
+                };
+                if (isFormulaValue(resolvedValue)) {
+                  formulaRemapQueue.push({
+                    key: targetK,
+                    origRow: br,
+                    outRow,
+                    isInsideLoop: false,
+                  });
+                }
+              }
+              continue;
+            }
+
             if (srcCell) {
               const hasActivityToken =
                 Boolean(entry?.activityFormat) &&
@@ -879,7 +1218,12 @@ export function buildLoopedSheetFromTemplate(
                 style: mergedStyle,
               };
               if (isFormulaValue(resolvedValue)) {
-                formulaRemapQueue.push({ key: targetK, origRow: br, outRow });
+                formulaRemapQueue.push({
+                  key: targetK,
+                  origRow: br,
+                  outRow,
+                  isInsideLoop: true,
+                });
               }
             } else if (entry?.rowColor || entry?.isHoliday) {
               outCells[cellKey(outRow, c)] = {
@@ -896,12 +1240,19 @@ export function buildLoopedSheetFromTemplate(
         // Replicate merges contained within this contiguous loop block
         for (const m of tpl.merges) {
           if (m.startRow >= blockStart && m.endRow <= blockEnd) {
-            outMerges.push({
-              startRow: iterOutStart + (m.startRow - blockStart),
-              startCol: m.startCol,
-              endRow: iterOutStart + (m.endRow - blockStart),
-              endCol: m.endCol,
-            });
+            const mergeIsLooped = isCellInLoopRanges(
+              loopRanges,
+              m.startRow,
+              m.startCol
+            );
+            if (mergeIsLooped || idx === 0) {
+              outMerges.push({
+                startRow: iterOutStart + (m.startRow - blockStart),
+                startCol: m.startCol,
+                endRow: iterOutStart + (m.endRow - blockStart),
+                endCol: m.endCol,
+              });
+            }
           }
         }
       });
@@ -931,7 +1282,12 @@ export function buildLoopedSheetFromTemplate(
             style: srcCell.style ? { ...srcCell.style } : undefined,
           };
           if (isFormulaValue(resolvedValue)) {
-            formulaRemapQueue.push({ key: targetK, origRow: r, outRow });
+            formulaRemapQueue.push({
+              key: targetK,
+              origRow: r,
+              outRow,
+              isInsideLoop: false,
+            });
           }
         }
       }
@@ -957,13 +1313,12 @@ export function buildLoopedSheetFromTemplate(
   for (const item of formulaRemapQueue) {
     const cellObj = outCells[item.key];
     if (!cellObj) continue;
-    const isInsideLoop = loopSet.has(item.origRow);
     cellObj.value = remapFormulaForLoopExpansion(
       cellObj.value,
       outRowStart,
       outRowEnd,
-      isInsideLoop ? item.origRow : undefined,
-      isInsideLoop ? item.outRow : undefined
+      item.isInsideLoop ? item.origRow : undefined,
+      item.isInsideLoop ? item.outRow : undefined
     );
   }
 

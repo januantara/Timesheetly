@@ -85,7 +85,7 @@ export function Sidebar({
                   alt="Timesheetly Logo"
                   referrerPolicy="no-referrer"
                   onError={() => setLogoError(true)}
-                  className="h-8 w-8 shrink-0 rounded-lg border border-slate-200 bg-white object-cover"
+                  className="h-8 w-8 shrink-0 rounded-lg object-contain"
                 />
               ) : (
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white font-display font-bold text-sm">

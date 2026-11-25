@@ -108,6 +108,13 @@ export interface SheetImage {
   label?: string;
 }
 
+export interface SheetLoopRange {
+  startRow: number;
+  endRow: number;
+  startCol: number;
+  endCol: number;
+}
+
 export interface SheetTemplate {
   colWidths: number[];
   rowHeights: number[];
@@ -116,6 +123,7 @@ export interface SheetTemplate {
   images: SheetImage[];
   dataRowIndex: number | null;
   dataRowIndices?: number[];
+  loopRanges?: SheetLoopRange[];
 }
 
 export interface VendorProfile {
